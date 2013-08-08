@@ -1,0 +1,20 @@
+<script>
+<% if msg.has_key?("instance_name") %>
+NETDOM RENAMECOMPUTER %COMPUTERNAME% /NewName:<%= msg["instance_name"] %> /Force
+<% end %>
+<% if msg.has_key?("http_proxy") %>
+setx http_proxy <%= msg["http_proxy"] %> /M
+setx HTTPS_PROXY <%= msg["http_proxy"] %> /M
+setx NO_PROXY "example.com,test.example.com,wonga.com" /M
+<% end %>
+winrm quickconfig -q & winrm set winrm/config/winrs @{MaxMemoryPerShellMB="2048"} & winrm set winrm/config/winrs @{MaxConcurrentUsers="100"} & winrm set winrm/config/winrs @{MaxProcessesPerShell="0"} & winrm set winrm/config/winrs @{MaxShellsPerUser="0"} & winrm set winrm/config @{MaxTimeoutms="1800000"} & winrm set winrm/config/service @{AllowUnencrypted="true"} & winrm set winrm/config/service/auth @{Basic="true"} & winrm set winrm/config/service/auth @{CredSSP="true"} & winrm set winrm/config/client @{TrustedHosts="*"}
+</script>
+<powershell>
+<% if (msg.has_key?("windows_set_admin_password")) && (msg["windows_set_admin_password"] == true) && (msg.has_key?("windows_set_admin_password")) %>
+$admin = [adsi]("WinNT://./administrator, user")
+$admin.psbase.invoke("SetPassword", "<%= msg["windows_admin_password"] %>")
+<% end %>
+Set-ExecutionPolicy Unrestricted -force
+Enable-WSManCredSSP -Role server -force
+Restart-Computer -force
+</powershell>
