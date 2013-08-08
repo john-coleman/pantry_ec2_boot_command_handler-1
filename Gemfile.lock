@@ -1,13 +1,15 @@
 GIT
   remote: git@github.com:wongatech/pantry_daemon_common.git
-  revision: d64e006b790b23c6c1096e3a9d4d116b52c71a01
-  tag: v0.0.3
+  revision: 7cf30fdf30083555fa0b2eb0e0cf5c51dc8da9a2
+  tag: v0.1.1
   specs:
-    pantry_daemon_common (0.0.3)
+    pantry_daemon_common (0.1.1)
       aws-sdk
+      daemons
       em-winrm
       net-ssh
       net-ssh-multi
+      syslogger
 
 GIT
   remote: https://github.com/besol/em-winrm.git
@@ -63,7 +65,7 @@ GEM
     httpi (0.9.7)
       rack
     json (1.8.0)
-    listen (1.2.2)
+    listen (1.2.3)
       rb-fsevent (>= 0.9.3)
       rb-inotify (>= 0.9)
       rb-kqueue (>= 0.2)
@@ -101,11 +103,11 @@ GEM
       rspec-expectations (~> 2.14.0)
       rspec-mocks (~> 2.14.0)
     rspec-core (2.14.4)
-    rspec-expectations (2.14.0)
+    rspec-expectations (2.14.1)
       diff-lcs (>= 1.1.3, < 2.0)
     rspec-fire (1.2.0)
       rspec (~> 2.11)
-    rspec-mocks (2.14.2)
+    rspec-mocks (2.14.3)
     rubyntlm (0.1.1)
     savon (0.9.5)
       akami (~> 1.0)
@@ -122,6 +124,7 @@ GEM
     simplecov-rcov (0.2.3)
       simplecov (>= 0.4.1)
     slop (3.4.6)
+    syslogger (1.5.1)
     thor (0.18.1)
     uuidtools (2.1.4)
     wasabi (1.0.0)

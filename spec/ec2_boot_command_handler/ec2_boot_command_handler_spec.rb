@@ -1,41 +1,77 @@
-require_relative "../../ec2_boot_command_handler/ec2_boot_command_handler"
 require 'spec_helper'
+require_relative "../../ec2_boot_command_handler/ec2_boot_command_handler"
+require 'logger'
 
-describe Daemons::EC2BootCommandHandler do
-  let(:ec2) { AWS::EC2.new }
-  let(:publisher) { instance_double('Publisher').as_null_object }
-  let(:raise_msg) { {request_id: 1, instance_id: 2} }
-  subject { Daemons::EC2BootCommandHandler.new(ec2, publisher) }
-  let(:test_hash){ 
+describe Wonga::Daemon::EC2BootCommandHandler do
+  let(:logger) { instance_double('Logger').as_null_object }
+  let(:publisher) { instance_double('Wonga::Daemon::Publisher').as_null_object }
+  let(:instance_id) { 42 }
+  let(:request_id) { 2 }
+
+  let(:message) {
     {
-      pantry_request_id: "",
-      instance_name: "sqs test",
-      flavor: "t1.micro",
-      ami: "ami-fedfd48a",
-      team_id: "test team",
-      subnet_id: "subnet-f3c63a98", 
-      security_group_ids: "sg-f94dc88e",
-      aws_key_pair_name: 'eu-test-1'
+      "pantry_request_id" => request_id,
+      "instance_name" => "sqs test",
+      "flavor" => "t1.micro",
+      "ami" => "ami-fedfd48a",
+      "team_id" => "test team",
+      "subnet_id" => "subnet-f3c63a98", 
+      "security_group_ids" => "sg-f94dc88e",
+      "aws_key_pair_name" => 'eu-test-1'
     }
   }
-  let(:good_msg){ test_hash.to_json }
 
-  describe "#machine_already_booted" do
-    it "Takes a non existing machine ID and returns false" do 
-      expect(subject.machine_already_booted(-1)).to be false
+  subject { Wonga::Daemon::EC2BootCommandHandler.new(publisher, logger) }
+
+  it_behaves_like "handler"
+
+  describe "#handle_message" do
+    let(:instance) { double(id: instance_id) }
+
+    before(:each) do
+      subject.stub(:boot_machine).and_return(instance)
+    end
+
+    include_examples "send message"
+
+    context "when machine is already booted" do
+      before(:each) do
+        subject.stub(:find_machine_by_request_id).with(request_id).and_return(instance)
+      end
+
+      include_examples "send message"
     end
   end
 
-  describe "#raise_machine_booted_event" do 
-    it "Takes two ids and pokes SQS" do 
-      subject.raise_machine_booted_event(test_hash, 2)
-      expect(publisher).to have_received(:publish)
+  describe "#find_machine_by_request_id" do
+    it "returns nil for a non existing machine ID" do
+      expect(subject.find_machine_by_request_id(-1)).to be_nil
+    end
+
+    it "returns machine if it can be found" do
+      client = AWS::EC2.new.client
+      resp = client.stub_for(:describe_instances)
+      resp[:reservation_set] << double(instances_set: [double(:instance_id => 'test')])
+      expect(subject.find_machine_by_request_id(-1).id).to be_eql('test')
+
+      # stub_for stay after test run
+      client.instance_variable_set(:@stubs, {})
     end
   end
 
-  describe "#tag_and_wait_instance" do 
+  describe "#raise_machine_booted_event" do
+    it "takes two ids and pokes SQS" do
+      publisher.stub(:publish) do |hash|
+        expect(hash[:instance_id]).to eql(instance_id)
+      end
+
+      subject.raise_machine_booted_event(message, instance_id)
+    end
+  end
+
+  describe "#tag_and_wait_instance" do
     it "Takes machine details and boots an ec2 instance" do 
-      resp = ec2.client.stub_for(:describe_instance_status)
+      resp = AWS::EC2.new.client.stub_for(:describe_instance_status)
       resp.data[:instance_status_set] = [ {instance_status: {status: "ok"} } ]
       instance = double("instance", id: "i-1337")
       expect(
