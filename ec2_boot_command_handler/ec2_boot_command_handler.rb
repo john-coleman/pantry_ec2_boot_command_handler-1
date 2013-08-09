@@ -12,7 +12,7 @@ module Daemons
       existing_instance_id = machine_already_booted(msg["pantry_request_id"])
       if !existing_instance_id
         puts "Attempting to boot machine with id: #{msg["pantry_request_id"]}"
-        instance_id = boot_machine(
+        instance = boot_machine(
           msg["pantry_request_id"],
           msg["instance_name"],
           msg["flavor"],
@@ -22,18 +22,25 @@ module Daemons
           msg["security_group_ids"],
           msg["aws_key_pair_name"]
         )
+        instance_id = instance.id
+        instance_ip = instance.private_ip_address
       else
         instance_id = existing_instance_id
+        instance_ip = @ec2.instances[instance_id].private_ip_address
         puts "Machine request #{msg["pantry_request_id"]} already booted"
       end
       raise_machine_booted_event(
         msg,
-        instance_id
+        instance_id,
+        instance_ip
       )
     end
 
-    def raise_machine_booted_event(msg_in, instance_id)
-      msg_out = msg_in.merge({instance_id: instance_id})
+    def raise_machine_booted_event(msg_in, instance_id, private_ip)
+      msg_out = msg_in.merge({
+        instance_id: instance_id,
+        private_ip: private_ip
+      })
       @publisher.publish(msg_out)
     end
 
@@ -97,7 +104,7 @@ module Daemons
             when "initializing"
               print "."
             when "ok"
-              return instance.id
+              return instance
             else
               raise "Unexpected EC2 status return: #{instance_status}"
           end

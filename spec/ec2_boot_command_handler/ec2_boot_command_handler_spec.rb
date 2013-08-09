@@ -28,7 +28,7 @@ describe Daemons::EC2BootCommandHandler do
 
   describe "#raise_machine_booted_event" do 
     it "Takes two ids and pokes SQS" do 
-      subject.raise_machine_booted_event(test_hash, 2)
+      subject.raise_machine_booted_event(test_hash, 2, "192.168.13.37")
       expect(publisher).to have_received(:publish)
     end
   end
