@@ -1,4 +1,5 @@
 require 'aws-sdk'
+require 'erb'
 require 'timeout'
 
 module Daemons
@@ -11,6 +12,7 @@ module Daemons
     def handle_message(msg)
       existing_instance_id = machine_already_booted(msg["pantry_request_id"])
       if !existing_instance_id
+        user_data = render_user_data(msg)
         puts "Attempting to boot machine with id: #{msg["pantry_request_id"]}"
         instance = boot_machine(
           msg["pantry_request_id"],
@@ -20,7 +22,8 @@ module Daemons
           msg["team_id"],
           msg["subnet_id"],
           msg["security_group_ids"],
-          msg["aws_key_pair_name"]
+          msg["aws_key_pair_name"],
+          user_data
         )
         instance_id = instance.id
         instance_ip = instance.private_ip_address
@@ -34,6 +37,11 @@ module Daemons
         instance_id,
         instance_ip
       )
+    end
+
+    def render_user_data(msg)
+      template = IO.read(File.join(File.dirname(__FILE__),"..","templates","user_data_windows.erb"))
+      user_data = ERB.new(template, nil, "<>").result(msg.instance_eval{binding})
     end
 
     def raise_machine_booted_event(msg_in, instance_id, private_ip)
@@ -53,19 +61,20 @@ module Daemons
       end
     end
 
-    def boot_machine(request_id, instance_name, flavor, ami, team_id, subnet_id, secgroup_ids, key_name)
-      instance = create_instance(ami, flavor, secgroup_ids, subnet_id, key_name)
+    def boot_machine(request_id, instance_name, flavor, ami, team_id, subnet_id, secgroup_ids, key_name, user_data)
+      instance = create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, user_data)
       tag_and_wait_instance(instance, request_id, instance_name, team_id)
     end
 
-    def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name)
+    def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, user_data)
       instance = @ec2.instances.create(
         image_id:             ami,
         instance_type:        flavor,
         count:                1,
         security_group_ids:   [secgroup_ids],
         subnet:               subnet_id,
-        key_name:             key_name
+        key_name:             key_name,
+        user_data:            user_data
       )
       return instance
     end
