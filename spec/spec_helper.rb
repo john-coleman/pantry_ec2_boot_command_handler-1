@@ -1,3 +1,5 @@
+require 'aws'
+require 'spec_support/shared_daemons'
 require 'rspec/fire'
 
 AWS.config :access_key_id=>"test", :secret_access_key=>"test"
