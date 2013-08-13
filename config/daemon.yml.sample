@@ -6,8 +6,12 @@ development:
   daemon:
     app_name: this_daemon_name
     backtrace: true
-    dir_mode: normal 
+    dir_mode: normal
     dir: /tmp
+    log:
+      logger: file
+      log_file: /tmp/some_log_file.log
+      shift_age: 1
     monitor: false
   pantry:
     api_key: some_pantry_api_key
