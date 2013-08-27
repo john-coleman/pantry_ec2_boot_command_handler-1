@@ -1,14 +1,15 @@
 GIT
   remote: git@github.com:wongatech/pantry_daemon_common.git
-  revision: 7cf30fdf30083555fa0b2eb0e0cf5c51dc8da9a2
-  tag: v0.1.1
+  revision: d70ba70283f7f2e6f8681249516c06ba838134bd
+  tag: v0.1.5
   specs:
-    pantry_daemon_common (0.1.1)
+    pantry_daemon_common (0.1.5)
       aws-sdk
       daemons
       em-winrm
       net-ssh
       net-ssh-multi
+      rest-client
       syslogger
 
 GIT
@@ -74,6 +75,7 @@ GEM
       little-plugger (>= 1.1.3)
     lumberjack (1.0.4)
     method_source (0.8.2)
+    mime-types (1.24)
     mixlib-log (1.6.0)
     multi_json (1.7.8)
     net-ssh (2.6.8)
@@ -98,6 +100,8 @@ GEM
       ffi (>= 0.5.0)
     rb-kqueue (0.2.0)
       ffi (>= 0.5.0)
+    rest-client (1.6.7)
+      mime-types (>= 1.16)
     rspec (2.14.1)
       rspec-core (~> 2.14.0)
       rspec-expectations (~> 2.14.0)
