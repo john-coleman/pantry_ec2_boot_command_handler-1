@@ -60,7 +60,7 @@ module Wonga
           image_id:             ami,
           instance_type:        flavor,
           count:                1,
-          security_group_ids:   [secgroup_ids],
+          security_group_ids:   Array(secgroup_ids),
           subnet:               subnet_id,
           key_name:             key_name,
           user_data:            user_data
