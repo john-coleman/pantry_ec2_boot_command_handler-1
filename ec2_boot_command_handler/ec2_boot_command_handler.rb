@@ -69,7 +69,7 @@ module Wonga
       end
 
       def find_machine_by_request_id(request_id)
-        @ec2.instances.tagged('pantry_request_id').tagged_values("#{request_id}").first
+        @ec2.instances.filter('tag:pantry_request_id', [request_id]).first
       end
 
       def tag_and_wait_instance(instance, request_id, instance_name, team_id)
