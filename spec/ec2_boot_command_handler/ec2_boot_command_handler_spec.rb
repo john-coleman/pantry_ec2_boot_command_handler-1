@@ -76,7 +76,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       resp.data[:instance_status_set] = [ {instance_status: {status: "ok"} } ]
       instance = double("instance", id: "i-1337")
       expect(
-        subject.tag_and_wait_instance(instance, 1, "test_name", "test_team")
+        subject.tag_and_wait_instance(instance, 1, "test_name", "test_domain", "test_team")
       ).not_to be_false
     end
   end
