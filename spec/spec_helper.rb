@@ -1,3 +1,12 @@
+ENV["RAILS_ENV"] ||= 'test'
+unless ENV["SKIP_COV"]
+  require 'simplecov'
+  require 'simplecov-rcov'
+  SimpleCov.formatter = SimpleCov::Formatter::MultiFormatter[
+    SimpleCov::Formatter::HTMLFormatter,
+    SimpleCov::Formatter::RcovFormatter
+  ]
+end
 require 'aws'
 require 'spec_support/shared_daemons'
 require 'rspec/fire'

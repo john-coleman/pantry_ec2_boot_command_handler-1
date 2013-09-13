@@ -21,6 +21,7 @@ module Wonga
           machine = boot_machine(
             message["pantry_request_id"],
             message["instance_name"],
+            message["domain"],
             message["flavor"],
             message["ami"],
             message["team_id"],
@@ -50,9 +51,9 @@ module Wonga
         @publisher.publish(message_out)
       end
 
-      def boot_machine(request_id, instance_name, flavor, ami, team_id, subnet_id, secgroup_ids, key_name, user_data)
+      def boot_machine(request_id, instance_name, domain, flavor, ami, team_id, subnet_id, secgroup_ids, key_name, user_data)
         instance = create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, user_data)
-        tag_and_wait_instance(instance, request_id, instance_name, team_id)
+        tag_and_wait_instance(instance, request_id, instance_name, domain, team_id)
       end
 
       def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, user_data)
@@ -72,12 +73,12 @@ module Wonga
         @ec2.instances.filter('tag:pantry_request_id', [request_id.to_s]).first
       end
 
-      def tag_and_wait_instance(instance, request_id, instance_name, team_id)
+      def tag_and_wait_instance(instance, request_id, instance_name, domain, team_id)
         @ec2.client.create_tags(
           resources: [instance.id],
           tags: 
           [
-            { key: "Name",              value: instance_name  },
+            { key: "Name",              value: "#{instance_name}.#{domain}"  },
             { key: "team_id",           value: "#{team_id}"   },
             { key: "pantry_request_id", value: "#{request_id}"}
           ]
