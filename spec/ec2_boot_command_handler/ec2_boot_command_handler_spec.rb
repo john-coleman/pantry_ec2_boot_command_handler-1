@@ -16,8 +16,8 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       "flavor" => "t1.micro",
       "ami" => "ami-fedfd48a",
       "team_id" => "test team",
-      "subnet_id" => "subnet-f3c63a98", 
-      "security_group_ids" => "sg-f94dc88e",
+      "subnet_id" => "subnet-f3c63a98",
+      "security_group_ids" => ["sg-f94dc88e"],
       "aws_key_pair_name" => 'eu-test-1'
     }
   }

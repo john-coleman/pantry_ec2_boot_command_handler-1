@@ -47,7 +47,11 @@ module Wonga
         message_out = message_in.merge(
           {instance_id: instance_id, private_ip: instance_ip}
         )
-        @publisher.publish(message_out)
+        begin
+          @publisher.publish(message_out)
+        rescue Exception => e
+          @logger.debug e.backtrace.to_s
+        end
       end
 
       def boot_machine(request_id, instance_name, flavor, ami, team_id, subnet_id, secgroup_ids, key_name, user_data)
@@ -60,7 +64,7 @@ module Wonga
           image_id:             ami,
           instance_type:        flavor,
           count:                1,
-          security_group_ids:   [secgroup_ids],
+          security_group_ids:   Array(secgroup_ids),
           subnet:               subnet_id,
           key_name:             key_name,
           user_data:            user_data
