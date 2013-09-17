@@ -28,6 +28,7 @@ module Wonga
             message["subnet_id"],
             message["security_group_ids"],
             message["aws_key_pair_name"],
+            message["block_device_hash"],
             user_data
           )
         end
@@ -56,16 +57,16 @@ module Wonga
         tag_and_wait_instance(instance, request_id, instance_name, domain, team_id)
       end
 
-      def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, user_data)
+      def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, vol_size, user_data)
         instance = @ec2.instances.create(
-          image_id:             ami,
-          instance_type:        flavor,
-          count:                1,
-          security_group_ids:   Array(secgroup_ids),
-          subnet:               subnet_id,
-          key_name:             key_name,
-          user_data:            user_data
-        )
+          image_id:               ami,
+          instance_type:          flavor,
+          count:                  1,
+          security_group_ids:     Array(secgroup_ids),
+          subnet:                 subnet_id,
+          key_name:               key_name,
+          user_data:              user_data,
+          block_device_mappings:  block_device_hash
         return instance
       end
 
