@@ -44,6 +44,32 @@ describe Wonga::Daemon::EC2BootCommandHandler do
     end
   end
 
+  describe "#create_instance" do   
+    let(:instance) { double(instance_id: "i-fake1337") }
+
+    it "calls AWS to create an instance" do 
+      client = AWS::EC2.new.client
+      resp = client.stub_for(:run_instances)
+      resp[:instances_set] << instance
+      expect(subject.create_instance(
+        "ami", 
+        "flavor", 
+        "secgroup_ids", 
+        "subnet_id", 
+        "key_name", 
+        [
+          { virtual_name: "some string",
+            device_name: "some string",
+            ebs: {
+              snapshot_id: "some ide"
+            }
+          }
+        ], 
+        "user_data")
+      ).to be_kind_of AWS::EC2::Instance
+    end
+  end      
+
   describe "#find_machine_by_request_id" do
     it "returns nil for a non existing machine ID" do
       expect(subject.find_machine_by_request_id(-1)).to be_nil
