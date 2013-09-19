@@ -75,12 +75,10 @@ module Wonga
       end
 
       def device_hash_keys_to_symbols(hash)
-        return hash if not hash.is_a?(Hash)
-        result = hash.inject({}) do |new, (k,v)|
+        return hash unless hash.is_a?(Hash)
+        result = hash.each_with_object({}) do |(k,v), new|
           new[k.to_sym] = device_hash_keys_to_symbols(v)
-          new
         end
-        result
       end
 
       def find_machine_by_request_id(request_id)
