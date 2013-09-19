@@ -86,6 +86,22 @@ describe Wonga::Daemon::EC2BootCommandHandler do
     end
   end
 
+  describe "#device_hash_keys_to_symbols" do 
+    let (:string_hash) { 
+      { "key1" => "val1",
+        "key2" => { "nestedKey" => "nestedVal" }
+      }
+    }
+    let (:symbol_hash) {
+      { key1: "val1",
+        key2: { nestedKey: "nestedVal" }
+      }
+    }
+    it "takes a string indexed hash and returns a symbol indexed hash" do 
+      expect(subject.device_hash_keys_to_symbols(string_hash)).to be_eql(symbol_hash)
+    end
+  end
+
   describe "#raise_machine_booted_event" do
     it "takes two ids and pokes SQS" do
       publisher.stub(:publish) do |hash|

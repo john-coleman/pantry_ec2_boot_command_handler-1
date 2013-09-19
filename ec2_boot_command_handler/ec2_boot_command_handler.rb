@@ -28,7 +28,7 @@ module Wonga
             message["subnet_id"],
             message["security_group_ids"],
             message["aws_key_pair_name"],
-            message["block_device_hash"],
+            message["block_device_mappings"],
             user_data
           )
         end
@@ -56,12 +56,12 @@ module Wonga
         end
       end
 
-      def boot_machine(request_id, instance_name, domain, flavor, ami, team_id, subnet_id, secgroup_ids, key_name, block_device_hash, user_data)
-        instance = create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, block_device_hash, user_data)
+      def boot_machine(request_id, instance_name, domain, flavor, ami, team_id, subnet_id, secgroup_ids, key_name, block_device_mappings, user_data)
+        instance = create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, block_device_mappings, user_data)
         tag_and_wait_instance(instance, request_id, instance_name, domain, team_id)
       end
 
-      def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, block_device_hash, user_data)
+      def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, block_device_mappings, user_data)
         @ec2.instances.create(
           image_id:               ami,
           instance_type:          flavor,
@@ -70,8 +70,15 @@ module Wonga
           subnet:                 subnet_id,
           key_name:               key_name,
           user_data:              user_data,
-          block_device_mappings:  block_device_hash
+          block_device_mappings:  block_device_mappings.map{|i| device_hash_keys_to_symbols(i) }
         )
+      end
+
+      def device_hash_keys_to_symbols(hash)
+        return hash unless hash.is_a?(Hash)
+        result = hash.each_with_object({}) do |(k,v), new|
+          new[k.to_sym] = device_hash_keys_to_symbols(v)
+        end
       end
 
       def find_machine_by_request_id(request_id)
