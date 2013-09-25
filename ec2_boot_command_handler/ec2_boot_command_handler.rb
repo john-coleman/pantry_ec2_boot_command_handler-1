@@ -21,12 +21,14 @@ module Wonga
           machine = boot_machine(
             message["pantry_request_id"],
             message["instance_name"],
+            message["domain"],
             message["flavor"],
             message["ami"],
             message["team_id"],
             message["subnet_id"],
             message["security_group_ids"],
             message["aws_key_pair_name"],
+            message["block_device_mappings"],
             user_data
           )
         end
@@ -54,11 +56,12 @@ module Wonga
         end
       end
 
-      def boot_machine(request_id, instance_name, flavor, ami, team_id, subnet_id, secgroup_ids, key_name, user_data)
-        instance = create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, user_data)
-        tag_and_wait_instance(instance, request_id, instance_name, team_id)
+      def boot_machine(request_id, instance_name, domain, flavor, ami, team_id, subnet_id, secgroup_ids, key_name, block_device_mappings, user_data)
+        instance = create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, block_device_mappings, user_data)
+        tag_and_wait_instance(instance, request_id, instance_name, domain, team_id)
       end
 
+<<<<<<< HEAD
       def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, user_data)
         instance = @ec2.instances.create(
           image_id:             ami,
@@ -68,20 +71,38 @@ module Wonga
           subnet:               subnet_id,
           key_name:             key_name,
           user_data:            user_data
+=======
+      def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, block_device_mappings, user_data)
+        @ec2.instances.create(
+          image_id:               ami,
+          instance_type:          flavor,
+          count:                  1,
+          security_group_ids:     Array(secgroup_ids),
+          subnet:                 subnet_id,
+          key_name:               key_name,
+          user_data:              user_data,
+          block_device_mappings:  block_device_mappings.map{|i| device_hash_keys_to_symbols(i) }
+>>>>>>> aa79a7bfd652d78438dbb424c4cc1b67ad1821bd
         )
-        return instance
+      end
+
+      def device_hash_keys_to_symbols(hash)
+        return hash unless hash.is_a?(Hash)
+        result = hash.each_with_object({}) do |(k,v), new|
+          new[k.to_sym] = device_hash_keys_to_symbols(v)
+        end
       end
 
       def find_machine_by_request_id(request_id)
-        @ec2.instances.tagged('pantry_request_id').tagged_values("#{request_id}").first
+        @ec2.instances.filter('tag:pantry_request_id', [request_id.to_s]).first
       end
 
-      def tag_and_wait_instance(instance, request_id, instance_name, team_id)
+      def tag_and_wait_instance(instance, request_id, instance_name, domain, team_id)
         @ec2.client.create_tags(
           resources: [instance.id],
           tags: 
           [
-            { key: "Name",              value: instance_name  },
+            { key: "Name",              value: "#{instance_name}.#{domain}"  },
             { key: "team_id",           value: "#{team_id}"   },
             { key: "pantry_request_id", value: "#{request_id}"}
           ]
