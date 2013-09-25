@@ -61,6 +61,17 @@ module Wonga
         tag_and_wait_instance(instance, request_id, instance_name, domain, team_id)
       end
 
+<<<<<<< HEAD
+      def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, user_data)
+        instance = @ec2.instances.create(
+          image_id:             ami,
+          instance_type:        flavor,
+          count:                1,
+          security_group_ids:   Array(secgroup_ids),
+          subnet:               subnet_id,
+          key_name:             key_name,
+          user_data:            user_data
+=======
       def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, block_device_mappings, user_data)
         @ec2.instances.create(
           image_id:               ami,
@@ -71,6 +82,7 @@ module Wonga
           key_name:               key_name,
           user_data:              user_data,
           block_device_mappings:  block_device_mappings.map{|i| device_hash_keys_to_symbols(i) }
+>>>>>>> aa79a7bfd652d78438dbb424c4cc1b67ad1821bd
         )
       end
 
