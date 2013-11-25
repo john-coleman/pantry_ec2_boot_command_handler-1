@@ -21,6 +21,32 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       "aws_key_pair_name" => 'eu-test-1'
     }
   }
+  let(:message_nil_proxy) {
+    {
+      "pantry_request_id" => request_id,
+      "instance_name" => "sqs test",
+      "flavor" => "t1.micro",
+      "ami" => "ami-fedfd48a",
+      "team_id" => "test team",
+      "http_proxy" => nil,
+      "subnet_id" => "subnet-f3c63a98",
+      "security_group_ids" => ["sg-f94dc88e"],
+      "aws_key_pair_name" => 'eu-test-1'
+    }
+  }
+  let(:message_proxy) {
+    {
+      "pantry_request_id" => request_id,
+      "instance_name" => "sqs test",
+      "flavor" => "t1.micro",
+      "ami" => "ami-fedfd48a",
+      "team_id" => "test team",
+      "http_proxy" => "http://proxy.herp.derp:0",
+      "subnet_id" => "subnet-f3c63a98",
+      "security_group_ids" => ["sg-f94dc88e"],
+      "aws_key_pair_name" => 'eu-test-1'
+    }
+  }
 
   subject { Wonga::Daemon::EC2BootCommandHandler.new(publisher, logger) }
 
@@ -69,6 +95,24 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       ).to be_kind_of AWS::EC2::Instance
     end
   end      
+
+  describe "#render_user_data" do
+    context "no proxy field" do
+      it "renders userdata without proxy variables" do
+        expect(subject.render_user_data(message)).not_to include("PROXY")
+      end
+    end
+    context "nil proxy field" do
+      it "renders userdata without proxy variables" do
+        expect(subject.render_user_data(message_nil_proxy)).not_to include("PROXY")
+      end
+    end
+    context "proxy field specified" do
+      it "renders userdata with proxy variables" do
+        expect(subject.render_user_data(message_proxy)).to include("PROXY")
+      end
+    end
+  end
 
   describe "#find_machine_by_request_id" do
     it "returns nil for a non existing machine ID" do
