@@ -18,7 +18,8 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       "team_id" => "test team",
       "subnet_id" => "subnet-f3c63a98",
       "security_group_ids" => ["sg-f94dc88e"],
-      "aws_key_pair_name" => 'eu-test-1'
+      "aws_key_pair_name" => 'eu-test-1',
+      "protected"         => false
     }
   }
   let(:message_nil_proxy) {
@@ -91,6 +92,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
             }
           }
         ], 
+        false,
         "user_data")
       ).to be_kind_of AWS::EC2::Instance
     end
