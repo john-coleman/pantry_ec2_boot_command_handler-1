@@ -2,7 +2,7 @@
 <% if msg.has_key?("instance_name") %>
 NETDOM RENAMECOMPUTER %COMPUTERNAME% /NewName:<%= msg["instance_name"] %> /Force
 <% end %>
-<% if (msg.has_key?("http_proxy")) && (!msg["http_proxy"].nil? )  %>
+<% if !msg["http_proxy"].nil? %>
 setx http_proxy <%= msg["http_proxy"] %> /M
 setx HTTPS_PROXY <%= msg["http_proxy"] %> /M
 setx NO_PROXY "<%= msg["domain"] %>,example.com,wonga.com" /M
