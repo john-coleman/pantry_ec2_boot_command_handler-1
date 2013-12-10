@@ -99,14 +99,10 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       it "logs an error" do 
         subject.stub(:find_machine_by_request_id).and_return(instance)                
         resp = AWS::EC2.new.client.stub_for(:describe_instance_status)
-        resp.data[:instance_status_set] = [ {instance_status: {status: ""} } ]        
-        expect(publisher).to receive(:publish).with(message.merge(
-          {
-            instance_id: "i-fake1337", 
-            instance_ip: "123.456.7.8"
-          })
-        )
-        subject.handle_message(message)
+        resp.data[:instance_status_set] = [ {instance_status: {status: "D34DB33F"} } ]        
+        expect(logger).to receive(:error)      
+        subject.handle_message(message)        
+      end
     end
   end
 
