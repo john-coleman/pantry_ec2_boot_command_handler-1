@@ -8,7 +8,6 @@ describe Wonga::Daemon::EC2BootCommandHandler do
   let(:instance_id) { 42 }
   let(:instance_ip) { "192.168.13.37" }
   let(:request_id) { 2 }
-
   let(:message) {
     {
       "pantry_request_id" => request_id,
@@ -19,71 +18,8 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       "subnet_id" => "subnet-f3c63a98",
       "security_group_ids" => ["sg-f94dc88e"],
       "aws_key_pair_name" => 'eu-test-1',
-      "protected"         => false
-    }
-  }
-  let(:message_nil_proxy) {
-    {
-      "pantry_request_id" => request_id,
-      "instance_name" => "sqs test",
-      "flavor" => "t1.micro",
-      "ami" => "ami-fedfd48a",
-      "team_id" => "test team",
-      "http_proxy" => nil,
-      "subnet_id" => "subnet-f3c63a98",
-      "security_group_ids" => ["sg-f94dc88e"],
-      "aws_key_pair_name" => 'eu-test-1'
-    }
-  }
-  let(:message_proxy) {
-    {
-      "pantry_request_id" => request_id,
-      "instance_name" => "sqs test",
-      "flavor" => "t1.micro",
-      "ami" => "ami-fedfd48a",
-      "team_id" => "test team",
-      "http_proxy" => "http://proxy.herp.derp:0",
-      "subnet_id" => "subnet-f3c63a98",
-      "security_group_ids" => ["sg-f94dc88e"],
-      "aws_key_pair_name" => 'eu-test-1'
-    }
-  }
-
-  subject { Wonga::Daemon::EC2BootCommandHandler.new(publisher, logger) }
-
-  it_behaves_like "handler"
-
-  describe "#handle_message" do
-    let(:instance) { double(id: instance_id, private_ip_address: instance_ip) }
-
-    before(:each) do
-      subject.stub(:boot_machine).and_return(instance)
-    end
-
-    include_examples "send message"
-
-    context "when machine is already booted" do
-      before(:each) do
-        subject.stub(:find_machine_by_request_id).with(request_id).and_return(instance)
-      end
-
-      include_examples "send message"
-    end
-  end
-
-  describe "#create_instance" do   
-    let(:instance) { double(instance_id: "i-fake1337") }
-
-    it "calls AWS to create an instance" do 
-      client = AWS::EC2.new.client
-      resp = client.stub_for(:run_instances)
-      resp[:instances_set] << instance
-      expect(subject.create_instance(
-        "ami", 
-        "flavor", 
-        "secgroup_ids", 
-        "subnet_id", 
-        "key_name", 
+      "protected"         => false,
+      "block_device_mappings" =>         
         [
           { virtual_name: "some string",
             device_name: "some string",
@@ -91,9 +27,98 @@ describe Wonga::Daemon::EC2BootCommandHandler do
               snapshot_id: "some ide"
             }
           }
-        ], 
-        false,
-        "user_data")
+        ] 
+    }
+  }
+  let(:message_nil_proxy) { message.merge({"http_proxy" => nil})  }
+  let(:message_proxy)     { message.merge({"http_proxy" => "http://proxy.herp.derp:0"}) }
+
+  subject { Wonga::Daemon::EC2BootCommandHandler.new(publisher, logger) }
+
+  it_behaves_like "handler"
+
+  describe "#handle_message" do 
+    context "machine not yet requested" do 
+      it "requests a machine" do
+        subject.stub(:find_machine_by_request_id).and_return(nil)
+        subject.stub(:request_instance).and_return(nil)
+        subject.stub(:tag_instance)
+        subject.should receive(:tag_instance)
+        expect{ 
+          subject.handle_message(message) 
+        }.to raise_error
+      end
+    end
+
+    context "machine requested but not yet responding" do 
+      let(:instance) { double(id: "i-fake1337") }      
+      it "attempts to contact AWS and raises an error" do
+        subject.stub(:find_machine_by_request_id).and_return(instance)
+        expect{
+          subject.handle_message(message)
+        }.to raise_error
+      end
+    end
+
+    context "machine responding and still initializing" do 
+      let(:instance) { double(id: "i-fake1337") }      
+      it "logs a pending message to syslog and raises an error" do
+        subject.stub(:find_machine_by_request_id).and_return(instance)                
+        resp = AWS::EC2.new.client.stub_for(:describe_instance_status)
+        resp.data[:instance_status_set] = [ {instance_status: {status: "initializing"} } ]        
+        expect(logger).to receive(:info)
+        expect{
+          subject.handle_message(message)
+        }.to raise_error
+      end
+    end
+
+    context "machine responding and in ok state" do 
+      let(:instance) { 
+        double(
+          id: "i-fake1337",
+          private_ip_address: "123.456.7.8"
+        ) 
+      }      
+      it "logs a finished message, publishes and exists" do 
+        subject.stub(:find_machine_by_request_id).and_return(instance)                
+        resp = AWS::EC2.new.client.stub_for(:describe_instance_status)
+        resp.data[:instance_status_set] = [ {instance_status: {status: "ok"} } ]        
+        expect(publisher).to receive(:publish).with(message.merge(
+          {
+            instance_id: "i-fake1337", 
+            instance_ip: "123.456.7.8"
+          })
+        )
+        subject.handle_message(message)
+      end
+    end
+
+    context "unexpected state" do 
+      let(:instance) { double(id: "i-fake1337") }      
+      it "logs an error" do 
+        subject.stub(:find_machine_by_request_id).and_return(instance)                
+        resp = AWS::EC2.new.client.stub_for(:describe_instance_status)
+        resp.data[:instance_status_set] = [ {instance_status: {status: ""} } ]        
+        expect(publisher).to receive(:publish).with(message.merge(
+          {
+            instance_id: "i-fake1337", 
+            instance_ip: "123.456.7.8"
+          })
+        )
+        subject.handle_message(message)
+    end
+  end
+
+  describe "#request_instance" do   
+    let(:instance) { double(instance_id: "i-fake1337") }
+
+    it "calls AWS to create an instance" do 
+      client = AWS::EC2.new.client
+      resp = client.stub_for(:run_instances)
+      resp[:instances_set] << instance
+      expect(
+        subject.request_instance(message)
       ).to be_kind_of AWS::EC2::Instance
     end
   end      
@@ -145,27 +170,6 @@ describe Wonga::Daemon::EC2BootCommandHandler do
     }
     it "takes a string indexed hash and returns a symbol indexed hash" do 
       expect(subject.device_hash_keys_to_symbols(string_hash)).to be_eql(symbol_hash)
-    end
-  end
-
-  describe "#raise_machine_booted_event" do
-    it "takes two ids and pokes SQS" do
-      publisher.stub(:publish) do |hash|
-        expect(hash[:instance_id]).to eql(instance_id)
-      end
-
-      subject.raise_machine_booted_event(message, instance_id, instance_ip)
-    end
-  end
-
-  describe "#tag_and_wait_instance" do
-    it "Takes machine details and boots an ec2 instance" do 
-      resp = AWS::EC2.new.client.stub_for(:describe_instance_status)
-      resp.data[:instance_status_set] = [ {instance_status: {status: "ok"} } ]
-      instance = double("instance", id: "i-1337")
-      expect(
-        subject.tag_and_wait_instance(instance, 1, "test_name", "test_domain", "test_team")
-      ).not_to be_false
     end
   end
 end

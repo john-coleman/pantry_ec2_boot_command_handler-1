@@ -11,119 +11,83 @@ module Wonga
         @logger = logger
       end
 
+      def find_machine_by_request_id(request_id)
+        @ec2.instances.filter('tag:pantry_request_id', [request_id.to_s]).first
+      end      
+
       def handle_message(message)
-        if machine = find_machine_by_request_id(message["pantry_request_id"])
-          @logger.warn "Machine request #{message["pantry_request_id"]} already booted"
+        instance = find_machine_by_request_id(message["pantry_request_id"])
+        if instance
+          begin
+            response = @ec2.client.describe_instance_status(instance_ids: [instance.id])
+            status = response.data[:instance_status_set][0][:instance_status][:status]
+          rescue
+            @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["name"]} response still pending")            
+            raise            
+          end
+
+          case status 
+          when "initializing"
+            @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["name"]} machine boot still pending")
+            raise 
+          when "ok"
+            @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["name"]} running, publishing")            
+            @publisher.publish(message.merge(
+              {
+                instance_id: instance.id,
+                instance_ip: instance.private_ip_address
+              })
+            )
+            return
+          else
+            @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["name"]} unexpected state: #{status}")
+          end
+
         else
-          @logger.warn "Attempting to boot machine with id: #{message["pantry_request_id"]}"
-          user_data = render_user_data(message)
-          @logger.debug "User data #{user_data}"
-          machine = boot_machine(
-            message["pantry_request_id"],
-            message["instance_name"],
-            message["domain"],
-            message["flavor"],
-            message["ami"],
-            message["team_id"],
-            message["subnet_id"],
-            message["security_group_ids"],
-            message["aws_key_pair_name"],
-            message["block_device_mappings"],
-            message["protected"],
-            user_data
-          )
+          instance = request_instance(message)
+          tag_instance(instance, message)
+          raise
         end
-
-        raise_machine_booted_event(
-          message,
-          machine.id,
-          machine.private_ip_address
-        )
-      end
-
-      def render_user_data(msg)
-        template = IO.read(File.join(File.dirname(__FILE__),"..","templates","user_data_windows.erb"))
-        user_data = ERB.new(template, nil, "<>").result(msg.instance_eval{binding})
-      end
-
-      def raise_machine_booted_event(message_in, instance_id, instance_ip)
-        message_out = message_in.merge(
-          {instance_id: instance_id, private_ip: instance_ip}
-        )
-        begin
-          @publisher.publish(message_out)
-        rescue Exception => e
-          @logger.debug e.backtrace.to_s
-        end
-      end
-
-      def boot_machine(request_id, instance_name, domain, flavor, ami, team_id, subnet_id, secgroup_ids, key_name, block_device_mappings, protected, user_data)
-        instance = create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, block_device_mappings, protected, user_data)
-        tag_and_wait_instance(instance, request_id, instance_name, domain, team_id)
-      end
-
-      def create_instance(ami, flavor, secgroup_ids, subnet_id, key_name, block_device_mappings, protected, user_data)
-        @ec2.instances.create(
-          image_id:               ami,
-          instance_type:          flavor,
-          count:                  1,
-          security_group_ids:     Array(secgroup_ids),
-          subnet:                 subnet_id,
-          key_name:               key_name,
-          user_data:              user_data,
-          block_device_mappings:  block_device_mappings.map{|i| device_hash_keys_to_symbols(i) },
-          disable_api_termination: protected      
-        )
-      end
+        @logger.error("Unexpected state encountered")
+      end      
 
       def device_hash_keys_to_symbols(hash)
         return hash unless hash.is_a?(Hash)
         result = hash.each_with_object({}) do |(k,v), new|
           new[k.to_sym] = device_hash_keys_to_symbols(v)
         end
+      end      
+
+      def render_user_data(msg)
+        template = IO.read(File.join(File.dirname(__FILE__),"..","templates","user_data_windows.erb"))
+        ERB.new(template, nil, "<>").result(msg.instance_eval{binding})
+      end      
+
+      def request_instance(message)
+        user_data = render_user_data(message)
+        @ec2.instances.create(
+          image_id:                 message["ami"],
+          instance_type:            message["flavor"],
+          key_name:                 message["aws_key_pair_name"],
+          subnet:                   message["subnet_id"],          
+          disable_api_termination:  message["protected"],
+          block_device_mappings:    message["block_device_mappings"].map{|i| device_hash_keys_to_symbols(i) },
+          security_group_ids:       Array(message["secgroup_ids"]),
+          user_data:                user_data,
+          count:                    1
+        )
       end
 
-      def find_machine_by_request_id(request_id)
-        @ec2.instances.filter('tag:pantry_request_id', [request_id.to_s]).first
-      end
-
-      def tag_and_wait_instance(instance, request_id, instance_name, domain, team_id)
+      def tag_instance(instance, message)
         @ec2.client.create_tags(
           resources: [instance.id],
           tags: 
           [
-            { key: "Name",              value: "#{instance_name}.#{domain}"  },
-            { key: "team_id",           value: "#{team_id}"   },
-            { key: "pantry_request_id", value: "#{request_id}"}
+            { key: "Name",              value: "#{message["instance_name"]}.#{message["domain"]}"  },
+            { key: "team_id",           value: "#{message["team_id"]}"   },
+            { key: "pantry_request_id", value: "#{message["request_id"]}"}
           ]
         )
-
-        @logger.warn "instance status: pending"
-        previous_status = nil
-        status = Timeout.timeout(300) {
-          while true do
-            begin
-              response = @ec2.client.describe_instance_status(instance_ids: [instance.id])
-              instance_status = response.data[:instance_status_set][0][:instance_status][:status]
-            rescue
-              sleep(3)
-              retry
-            end
-
-            if instance_status != previous_status
-              @logger.warn "Instance status: #{instance_status}"
-              previous_status = instance_status
-            end
-
-            if instance_status == "ok"
-              return instance
-            elsif instance_status != "initializing"
-              @logger.error "Unexpected EC2 status return: #{instance_status}"
-              raise "Unexpected EC2 status return: #{instance_status}"
-            end
-            sleep(3)
-          end
-        }
       end
     end
   end
