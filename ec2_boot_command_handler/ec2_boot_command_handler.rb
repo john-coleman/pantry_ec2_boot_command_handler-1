@@ -21,18 +21,19 @@ module Wonga
         if instance
           case instance.status 
           when :pending
-            @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["name"]} machine boot still pending")
+            @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["instance_name"]} machine boot still pending")
             raise 
           when :running
-            @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["name"]} running, publishing")            
+            @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["instance_name"]} running, publishing")            
             @publisher.publish(message.merge(
               {
-                instance_id: instance.id,
-                instance_ip: instance.private_ip_address
+                instance_id:  instance.id, 
+                private_ip:   instance.private_ip_address
               })
             )
+            return
           else
-            @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["name"]} unexpected state: #{instance.status}")
+            @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["instance_name"]} unexpected state: #{instance.status}")
           end
         else
           instance = request_instance(message)
@@ -54,7 +55,7 @@ module Wonga
           subnet:                   message["subnet_id"],          
           disable_api_termination:  message["protected"],
           block_device_mappings:    message["block_device_mappings"].map{|hash| hash.deep_symbolize_keys },
-          security_group_ids:       Array(message["secgroup_ids"]),
+          security_group_ids:       Array(message["security_group_ids"]),
           user_data:                render_user_data(message),
           count:                    1
         )
