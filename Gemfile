@@ -2,7 +2,7 @@ source 'https://rubygems.org'
 
 gem 'daemons'
 gem 'aws-sdk'
-gem 'pantry_daemon_common', git: 'git@github.com:wongatech/pantry_daemon_common.git', :tag => 'v0.1.7'
+gem 'pantry_daemon_common', git: 'git@github.com:wongatech/pantry_daemon_common.git', :tag => 'v0.2.2'
 gem 'activesupport'
 
 group :development do
