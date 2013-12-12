@@ -5,6 +5,7 @@ development:
     region: eu-west-1
   daemon:
     app_name: this_daemon_name
+    daemons_count: 1
     backtrace: true
     dir_mode: normal
     dir: /tmp
@@ -28,6 +29,7 @@ test:
     secret_access_key: some_aws_iam_secret_access_key
     region: eu-west-1
   daemon:
+    daemons_count: 1
     app_name: this_daemon_name
     backtrace: true
     dir_mode: system
@@ -49,6 +51,7 @@ production:
     region: eu-west-1
   daemon:
     app_name: this_daemon_name
+    daemons_count: 10
     backtrace: false
     dir_mode: system 
     dir: /var/run

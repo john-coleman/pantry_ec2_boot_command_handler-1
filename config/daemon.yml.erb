@@ -7,6 +7,7 @@
     request_wait: <%= @config["aws"]["config"]["request_wait"] %>
   daemon:
     app_name: <%= @config["id"] %>
+    daemons_count: <%= @config["daemon"]["daemons_count"] %>
     backtrace: <%= @config["daemon"]["backtrace"] %>
     dir_mode: <%= @config["daemon"]["dir_mode"] %>
     dir: <%= @daemon_dir %>
