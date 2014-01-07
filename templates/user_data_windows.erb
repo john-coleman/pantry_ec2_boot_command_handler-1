@@ -8,6 +8,8 @@ setx HTTPS_PROXY <%= msg["http_proxy"] %> /M
 setx NO_PROXY "<%= msg["domain"] %>,example.com,wonga.com" /M
 <% end %>
 winrm quickconfig -q & winrm set winrm/config/winrs @{MaxMemoryPerShellMB="2048"} & winrm set winrm/config/winrs @{MaxConcurrentUsers="100"} & winrm set winrm/config/winrs @{MaxProcessesPerShell="0"} & winrm set winrm/config/winrs @{MaxShellsPerUser="0"} & winrm set winrm/config @{MaxTimeoutms="1800000"} & winrm set winrm/config/service @{AllowUnencrypted="true"} & winrm set winrm/config/service/auth @{Basic="true"} & winrm set winrm/config/service/auth @{CredSSP="true"} & winrm set winrm/config/client @{TrustedHosts="*"}
+winmgmt -standalone
+netsh advfirewall firewall add rule name="WMIFixedPort" dir=in action=allow protocol=TCP localport=24158
 </script>
 <powershell>
 <% if (msg.has_key?("windows_set_admin_password")) && (msg["windows_set_admin_password"] == true) && (msg.has_key?("windows_set_admin_password")) %>
