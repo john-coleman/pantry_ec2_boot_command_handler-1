@@ -13,6 +13,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
     {
       "pantry_request_id" => request_id,
       "instance_name" => "sqs test",
+      "domain" => "blop.hurr",
       "flavor" => "t1.micro",
       "ami" => "ami-fedfd48a",
       "team_id" => "test team",
@@ -38,12 +39,23 @@ describe Wonga::Daemon::EC2BootCommandHandler do
 
   describe "#handle_message" do
     context "when machine is not requested" do
-      let(:created_instance) { instance_double('AWS::EC2::Instance', tags: tags) }
-      let(:tags) { { 'pantry_request_id' => request_id.to_s } }    
-
+      let(:attachments) { { 
+        "/dev/sda1" => instance_double('AWS::EC2::Attachment', volume: volume),
+        "/dev/sda2" => instance_double('AWS::EC2::Attachment', volume: volume)
+        } 
+      }              
+      let(:created_instance) { instance_double('AWS::EC2::Instance', 
+        tags:         tags,
+        attachments:  attachments ) 
+      }
+      let(:tags)        { { 'pantry_request_id' => request_id.to_s } }    
+      let(:vol_tags)    { {  } }    
+      let(:volume)      { instance_double('AWS::EC2::Volume', tags: vol_tags) }
+ 
       before(:each) do
         instances.stub(:create).and_return(created_instance)
         tags.stub(:set)
+        vol_tags.stub(:set)        
       end
 
       it "requests machine" do
@@ -80,14 +92,25 @@ describe Wonga::Daemon::EC2BootCommandHandler do
         end
       end
 
-      it "tags requested machine" do
+      it "tags requested machine and volumes" do
         expect(tags).to receive(:set).with(hash_including('pantry_request_id' => request_id.to_s))
+        expect(vol_tags).to receive(:set).with(hash_including(
+          'Name' => "#{message["instance_name"]}.#{message["domain"]}_OS_VOL",
+          'device' => "/dev/sda1"
+          )
+        )
+        expect(vol_tags).to receive(:set).with(hash_including(
+          'Name' => "#{message["instance_name"]}.#{message["domain"]}_VOL1",
+          'device' => "/dev/sda2"
+          )
+        )          
         subject.handle_message(message) rescue nil
       end
 
       it "raise exception after tagging" do
         expect { subject.handle_message(message) }.to raise_error
       end
+
 
       context "when machine can't be requested" do
 
