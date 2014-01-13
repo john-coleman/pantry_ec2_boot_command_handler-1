@@ -37,7 +37,7 @@ module Wonga
           end
         else
           instance = request_instance(message)
-          raise if tag_instance!(instance, message)
+          raise if tag_instance_and_volumes!(instance, message)
         end
         @logger.error("Unexpected state encountered")
       end    
@@ -61,18 +61,36 @@ module Wonga
         )
       end
 
-      def tag_instance!(instance, message)
+      def tag_instance_and_volumes!(instance, message)
         tags = {
           'Name'              => "#{message["instance_name"]}.#{message["domain"]}", 
           'team_id'           => message['team_id'].to_s,
           'pantry_request_id' => message['pantry_request_id'].to_s
         }
       
+        volume_count = 0
         instance.tags.set(tags)
+        instance.attachments.each do |device, attachment|
+          if device == "/dev/sda1"
+            vol_name = tags['Name'] + "_OS_VOL"
+          else
+            vol_name = tags['Name'] + "_VOL#{volume_count}"
+          end
+
+          vol_tags = tags.merge(
+            {
+            'Name'    => vol_name,
+            'device'  => device
+            }
+          )
+          attachment.volume.tags.set(vol_tags)
+          volume_count += 1
+        end
+
         instance.tags["pantry_request_id"] == message["pantry_request_id"].to_s
-       rescue Exception => e 
-          @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["name"]} failed to tag with error: #{e}")
-       end
+      rescue Exception => e 
+        @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["name"]} failed to tag with error: #{e}")
+      end
     end
   end
 end
