@@ -14,17 +14,18 @@ module Wonga
 
       def find_machine_by_request_id(request_id)
         @ec2.instances.filter('tag:pantry_request_id', [request_id.to_s]).first
-      end      
+      end
 
       def handle_message(message)
         instance = find_machine_by_request_id(message["pantry_request_id"])
         if instance
-          case instance.status 
+          case instance.status
           when :pending
             @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["instance_name"]} machine boot still pending")
-            raise 
+            raise
           when :running
-            @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["instance_name"]} running, publishing")            
+            @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["instance_name"]} running, publishing")
+            tag_volumes!(instance, message)
             @publisher.publish(message.merge(
               {
                 instance_id:  instance.id, 
@@ -37,22 +38,22 @@ module Wonga
           end
         else
           instance = request_instance(message)
-          raise if tag_instance_and_volumes!(instance, message)
+          raise if tag_instance!(instance, message)
         end
         @logger.error("Unexpected state encountered")
-      end    
+      end
 
       def render_user_data(msg)
         template = IO.read(File.join(File.dirname(__FILE__),"..","templates","user_data_windows.erb"))
         ERB.new(template, nil, "<>").result(msg.instance_eval{binding})
-      end      
+      end
 
       def request_instance(message)
         @ec2.instances.create(
           image_id:                 message["ami"],
           instance_type:            message["flavor"],
           key_name:                 message["aws_key_pair_name"],
-          subnet:                   message["subnet_id"],          
+          subnet:                   message["subnet_id"],
           disable_api_termination:  message["protected"],
           block_device_mappings:    message["block_device_mappings"].map{|hash| hash.deep_symbolize_keys },
           security_group_ids:       Array(message["security_group_ids"]),
@@ -61,20 +62,25 @@ module Wonga
         )
       end
 
-      def tag_instance_and_volumes!(instance, message)
-        tags = {
-          'Name'              => "#{message["instance_name"]}.#{message["domain"]}", 
-          'team_id'           => message['team_id'].to_s,
-          'pantry_request_id' => message['pantry_request_id'].to_s
-        }
-      
-        volume_count = 0
+      def tag_instance!(instance, message)
+        tags = tags_from_message(message)
         instance.tags.set(tags)
+
+        instance.tags["pantry_request_id"] == message["pantry_request_id"].to_s
+      rescue Exception => e
+        @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["name"]} failed to tag with error: #{e.inspect}")
+        @logger.error(e.backtrace)
+      end
+
+      def tag_volumes!(instance, message)
+        tags = tags_from_message(message)
+        volume_count = 1
         instance.attachments.each do |device, attachment|
           if device == "/dev/sda1"
             vol_name = tags['Name'] + "_OS_VOL"
           else
             vol_name = tags['Name'] + "_VOL#{volume_count}"
+            volume_count += 1
           end
 
           vol_tags = tags.merge(
@@ -84,12 +90,15 @@ module Wonga
             }
           )
           attachment.volume.tags.set(vol_tags)
-          volume_count += 1
         end
+      end
 
-        instance.tags["pantry_request_id"] == message["pantry_request_id"].to_s
-      rescue Exception => e 
-        @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["name"]} failed to tag with error: #{e}")
+      def tags_from_message(message)
+        {
+          'Name'              => "#{message["instance_name"]}.#{message["domain"]}",
+          'team_id'           => message['team_id'].to_s,
+          'pantry_request_id' => message['pantry_request_id'].to_s
+        }
       end
     end
   end

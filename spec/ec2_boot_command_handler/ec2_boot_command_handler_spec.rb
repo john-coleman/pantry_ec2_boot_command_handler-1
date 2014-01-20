@@ -21,7 +21,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       "security_group_ids" => ["sg-f94dc88e"],
       "aws_key_pair_name" => 'eu-test-1',
       "protected"     => false,
-      "block_device_mappings" =>     
+      "block_device_mappings" =>
       [
         { virtual_name: "some string",
           device_name: "some string",
@@ -29,7 +29,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
             snapshot_id: "some ide"
           }
       }
-      ] 
+      ]
     }
   }
 
@@ -39,23 +39,12 @@ describe Wonga::Daemon::EC2BootCommandHandler do
 
   describe "#handle_message" do
     context "when machine is not requested" do
-      let(:attachments) { { 
-        "/dev/sda1" => instance_double('AWS::EC2::Attachment', volume: volume),
-        "/dev/sda2" => instance_double('AWS::EC2::Attachment', volume: volume)
-        } 
-      }              
-      let(:created_instance) { instance_double('AWS::EC2::Instance', 
-        tags:         tags,
-        attachments:  attachments ) 
-      }
-      let(:tags)        { { 'pantry_request_id' => request_id.to_s } }    
-      let(:vol_tags)    { {  } }    
-      let(:volume)      { instance_double('AWS::EC2::Volume', tags: vol_tags) }
- 
+      let(:created_instance) { instance_double('AWS::EC2::Instance', tags: tags) }
+      let(:tags)        { { 'pantry_request_id' => request_id.to_s } }
+
       before(:each) do
         instances.stub(:create).and_return(created_instance)
         tags.stub(:set)
-        vol_tags.stub(:set)        
       end
 
       it "requests machine" do
@@ -92,18 +81,8 @@ describe Wonga::Daemon::EC2BootCommandHandler do
         end
       end
 
-      it "tags requested machine and volumes" do
+      it "tags requested machine" do
         expect(tags).to receive(:set).with(hash_including('pantry_request_id' => request_id.to_s))
-        expect(vol_tags).to receive(:set).with(hash_including(
-          'Name' => "#{message["instance_name"]}.#{message["domain"]}_OS_VOL",
-          'device' => "/dev/sda1"
-          )
-        )
-        expect(vol_tags).to receive(:set).with(hash_including(
-          'Name' => "#{message["instance_name"]}.#{message["domain"]}_VOL1",
-          'device' => "/dev/sda2"
-          )
-        )          
         subject.handle_message(message) rescue nil
       end
 
@@ -113,7 +92,6 @@ describe Wonga::Daemon::EC2BootCommandHandler do
 
 
       context "when machine can't be requested" do
-
         it "raise exception" do
           instances.stub(:create).and_raise
           expect { 
@@ -134,12 +112,12 @@ describe Wonga::Daemon::EC2BootCommandHandler do
   context "when machine is requested" do
     let(:instance_id) { "i-fake1337" }
     let(:instance_ip) { "192.168.13.37" }
-    let(:filtered_instance) { instance_double('AWS::EC2::Instance', private_ip_address: instance_ip, id: instance_id, status: status) }
+    let(:filtered_instance) { instance_double('AWS::EC2::Instance', status: status) }
 
     context "when machine can't return current status" do
       let(:status) { nil }
       it "raise exception and log error" do
-        expect{  
+        expect{
           subject.handle_message
         }.to raise_error
       end
@@ -156,8 +134,36 @@ describe Wonga::Daemon::EC2BootCommandHandler do
     end
 
     context "when machine's status is running" do
-      let(:status) { :running }
+      let(:attachments) { {
+        "/dev/sda1" => instance_double('AWS::EC2::Attachment', volume: volume),
+        "/dev/sda2" => instance_double('AWS::EC2::Attachment', volume: volume)
+        }
+      }
+
+      let(:filtered_instance) {
+        instance_double('AWS::EC2::Instance',
+                        private_ip_address: instance_ip,
+                        id: instance_id,
+                        status: :running,
+                        attachments: attachments)
+      }
+      let(:vol_tags)    { instance_double('AWS::EC2::ResourceTagCollection', set: true) }
+      let(:volume)      { instance_double('AWS::EC2::Volume', tags: vol_tags) }
+
       include_examples "send message"
+
+      it "tags volumes" do
+        expect(vol_tags).to receive(:set).with(hash_including(
+          'Name' => "#{message["instance_name"]}.#{message["domain"]}_OS_VOL",
+          'device' => "/dev/sda1"
+          )
+        )
+        expect(vol_tags).to receive(:set).with(hash_including(
+          'Name' => "#{message["instance_name"]}.#{message["domain"]}_VOL1",
+          'device' => "/dev/sda2"
+        ))
+        subject.handle_message(message)
+      end
     end
 
     [:shutting_down, :terminated, :stopping, :stopped].each do |state|
