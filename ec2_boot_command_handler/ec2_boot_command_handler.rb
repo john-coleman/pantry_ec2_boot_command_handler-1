@@ -29,6 +29,7 @@ module Wonga
             @publisher.publish(message.merge(
               {
                 instance_id:  instance.id, 
+                ip_address:   instance.private_ip_address,
                 private_ip:   instance.private_ip_address
               })
             )
