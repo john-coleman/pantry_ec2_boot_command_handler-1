@@ -7,7 +7,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
   let(:instances) { instance_double('AWS::EC2::InstanceCollection', filter: [filtered_instance]) }
   let(:filtered_instance) { nil }
   let(:logger) { instance_double('Logger').as_null_object }
-  let(:publisher) { instance_double('Wonga::Daemon::Publisher').as_null_object }
+  let(:publisher) { instance_double('Wonga::Daemon::Publisher', message: message).as_null_object }
   let(:request_id) { 2 }
   let(:message) {
     {
@@ -147,6 +147,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
                         status: :running,
                         attachments: attachments)
       }
+      let(:merged_message) { message.merge({instance_id: instance_id, ip_address: instance_ip, private_ip: instance_ip})}
       let(:vol_tags)    { instance_double('AWS::EC2::ResourceTagCollection', set: true) }
       let(:volume)      { instance_double('AWS::EC2::Volume', tags: vol_tags) }
 
@@ -163,6 +164,11 @@ describe Wonga::Daemon::EC2BootCommandHandler do
           'device' => "/dev/sda2"
         ))
         subject.handle_message(message)
+      end
+
+      it "merges IP address with message for publishing" do
+        subject.handle_message(message)
+        expect(publisher).to have_received(:publish).with(merged_message)
       end
     end
 
