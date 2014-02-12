@@ -20,6 +20,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       "subnet_id" => "subnet-f3c63a98",
       "security_group_ids" => ["sg-f94dc88e"],
       "aws_key_pair_name" => 'eu-test-1',
+      "platform"     => "windows",
       "protected"     => false,
       "block_device_mappings" =>
       [
@@ -81,6 +82,17 @@ describe Wonga::Daemon::EC2BootCommandHandler do
         end
       end
 
+      context "when Linux platform specified" do
+        let(:message_linux)   { message.merge({"platform" => "linux"}) }
+        it "requests machine with proxy" do
+          instances.stub(:create).and_return(created_instance) do |args|
+            expect(args[:user_data]).to include("#{message["instance_name"]}.#{message["domain"]}")
+            expect(args[:user_data]).to include("hostname #{message["instance_name"]}")
+          end
+          subject.handle_message(message_proxy) rescue nil
+        end
+      end
+
       it "tags requested machine" do
         expect(tags).to receive(:set).with(hash_including('pantry_request_id' => request_id.to_s))
         subject.handle_message(message) rescue nil
@@ -137,7 +149,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       let(:attachments) { {
         "/dev/sda1" => instance_double('AWS::EC2::Attachment', volume: volume),
         "/dev/sda2" => instance_double('AWS::EC2::Attachment', volume: volume)
-        }
+      }
       }
 
       let(:filtered_instance) {
@@ -157,8 +169,8 @@ describe Wonga::Daemon::EC2BootCommandHandler do
         expect(vol_tags).to receive(:set).with(hash_including(
           'Name' => "#{message["instance_name"]}.#{message["domain"]}_OS_VOL",
           'device' => "/dev/sda1"
-          )
         )
+                                              )
         expect(vol_tags).to receive(:set).with(hash_including(
           'Name' => "#{message["instance_name"]}.#{message["domain"]}_VOL1",
           'device' => "/dev/sda2"

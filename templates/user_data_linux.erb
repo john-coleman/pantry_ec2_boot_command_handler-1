@@ -1,0 +1,10 @@
+#Set Hostname
+echo <%= message["instance_name"] %> > /etc/hostname
+hostname <%= message["instance_name"] %>
+
+if [ -n "$(grep '127.0.1.1' /etc/hosts)" ]; then
+    sed -i 's/127.0.1.1.*/127.0.1.1 <%= message["instance_name"] %>.<%= message["domain"] %> <%= message["instance_name"] %>/' /etc/hosts
+else
+    sed -i -e '/127.0.0.1.*/{:a;n;/^$/!ba;i\127.0.1.1 <%= message["instance_name"] %>.<%= message["domain"] %> <%= message["instance_name"] %>' -e '}' /etc/hosts
+fi
+

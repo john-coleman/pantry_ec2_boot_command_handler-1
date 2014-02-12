@@ -26,13 +26,11 @@ module Wonga
           when :running
             @logger.info("Instance #{message["pantry_request_id"]} - name: #{message["instance_name"]} running, publishing")
             tag_volumes!(instance, message)
-            @publisher.publish(message.merge(
-              {
-                instance_id:  instance.id, 
-                ip_address:   instance.private_ip_address,
-                private_ip:   instance.private_ip_address
-              })
-            )
+            @publisher.publish(message.merge({
+              instance_id:  instance.id,
+              ip_address:   instance.private_ip_address,
+              private_ip:   instance.private_ip_address
+            }))
             return
           else
             @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["instance_name"]} unexpected state: #{instance.status}")
@@ -44,9 +42,9 @@ module Wonga
         @logger.error("Unexpected state encountered")
       end
 
-      def render_user_data(msg)
-        template = IO.read(File.join(File.dirname(__FILE__),"..","templates","user_data_windows.erb"))
-        ERB.new(template, nil, "<>").result(msg.instance_eval{binding})
+      def render_user_data(message)
+        template = IO.read(File.join(File.dirname(__FILE__),"..","templates","user_data_#{message["platform"]}.erb"))
+        ERB.new(template, nil, "<>").result(message.instance_eval{binding})
       end
 
       def request_instance(message)
@@ -66,7 +64,6 @@ module Wonga
       def tag_instance!(instance, message)
         tags = tags_from_message(message)
         instance.tags.set(tags)
-
         instance.tags["pantry_request_id"] == message["pantry_request_id"].to_s
       rescue Exception => e
         @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["name"]} failed to tag with error: #{e.inspect}")
@@ -86,8 +83,8 @@ module Wonga
 
           vol_tags = tags.merge(
             {
-            'Name'    => vol_name,
-            'device'  => device
+              'Name'    => vol_name,
+              'device'  => device
             }
           )
           attachment.volume.tags.set(vol_tags)
@@ -98,7 +95,7 @@ module Wonga
         {
           'Name'              => "#{message["instance_name"]}.#{message["domain"]}",
           'team_id'           => message['team_id'].to_s,
-          'pantry_request_id' => message['pantry_request_id'].to_s
+            'pantry_request_id' => message['pantry_request_id'].to_s
         }
       end
     end
