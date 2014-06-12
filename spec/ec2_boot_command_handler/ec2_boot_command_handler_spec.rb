@@ -7,8 +7,9 @@ describe Wonga::Daemon::EC2BootCommandHandler do
   let(:instances) { instance_double('AWS::EC2::InstanceCollection', filter: [filtered_instance]) }
   let(:filtered_instance) { nil }
   let(:logger) { instance_double('Logger').as_null_object }
-  let(:publisher) { instance_double('Wonga::Daemon::Publisher', message: message).as_null_object }
+  let(:publisher) { instance_double('Wonga::Daemon::Publisher', publish: message) }
   let(:request_id) { 2 }
+  let(:retry_count) { 0 }
   let(:message) {
     {
       "pantry_request_id" => request_id,
@@ -34,7 +35,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
     }
   }
 
-  subject { Wonga::Daemon::EC2BootCommandHandler.new(ec2, publisher, logger) }
+  subject { Wonga::Daemon::EC2BootCommandHandler.new(ec2, {'retries' => retry_count}, publisher, logger) }
 
   it_behaves_like "handler"
 
@@ -55,28 +56,20 @@ describe Wonga::Daemon::EC2BootCommandHandler do
 
       context "when no proxy attribute is provided" do
         it "requests machine with proxy" do
-          expect(instances).to receive(:create).and_return(created_instance) do |args|
-            expect(args[:user_data]).to include('PROXY')
+          expect(instances).to receive(:create) do |args|
+            expect(args[:user_data]).not_to include('PROXY')
+            created_instance
           end
           subject.handle_message(message) rescue nil
-        end
-      end
-
-      context "when proxy attribute is nil" do
-        let(:message_nil_proxy) { message.merge({"http_proxy" => nil})  }
-        it "requests machine with proxy" do
-          expect(instances).to receive(:create).and_return(created_instance) do |args|
-            expect(args[:user_data]).to include('PROXY')
-          end
-          subject.handle_message(message_nil_proxy) rescue nil
         end
       end
 
       context "when proxy attribute is provided" do
         let(:message_proxy)   { message.merge({"http_proxy" => "http://proxy.herp.derp:0"}) }
         it "requests machine with proxy" do
-          instances.stub(:create).and_return(created_instance) do |args|
+          instances.stub(:create) do |args|
             expect(args[:user_data]).to include('PROXY')
+            created_instance
           end
           subject.handle_message(message_proxy) rescue nil
         end
@@ -85,9 +78,10 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       context "when Linux platform specified" do
         let(:message_linux)   { message.merge({"platform" => "linux"}) }
         it "requests machine with proxy" do
-          instances.stub(:create).and_return(created_instance) do |args|
+          instances.stub(:create) do |args|
             expect(args[:user_data]).to include("#{message["instance_name"]}.#{message["domain"]}")
             expect(args[:user_data]).to include("hostname #{message["instance_name"]}")
+            created_instance
           end
           subject.handle_message(message_proxy) rescue nil
         end
@@ -106,16 +100,20 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       context "when machine can't be requested" do
         it "raise exception" do
           instances.stub(:create).and_raise
-          expect { 
+          expect {
             subject.handle_message(message) 
           }.to raise_error
         end
       end
 
       context "when machine wasn't tagged" do
-        let(:tags) { {} }
-        it "quits peacefully" do
-          subject.handle_message(message)
+        context "because of exception" do
+          let(:retry_count) { 10 }
+          it "quits peacefully after trying to set tags several times" do
+            allow(subject).to receive(:sleep)
+            expect(tags).to receive(:set).with(hash_including('pantry_request_id' => request_id.to_s)).and_raise.exactly(retry_count).times
+            subject.handle_message(message)
+          end
         end
       end
     end

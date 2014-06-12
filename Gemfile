@@ -1,8 +1,8 @@
 source 'https://rubygems.org'
 
 gem 'daemons'
-gem 'aws-sdk'
-gem 'pantry_daemon_common', git: 'git@github.com:wongatech/pantry_daemon_common.git', :tag => 'v0.2.2'
+gem 'aws-sdk', '~> 1.25'
+gem 'pantry_daemon_common', git: 'git@github.com:wongatech/pantry_daemon_common.git', :tag => 'v0.2.6'
 gem 'activesupport'
 
 group :development do
@@ -11,11 +11,10 @@ group :development do
 end
 
 group :test, :development do
-  gem 'em-winrm', git: 'https://github.com/besol/em-winrm.git'
   gem 'simplecov', require: false
   gem 'simplecov-rcov', require: false
-  gem 'rspec-fire'
-  gem 'rspec'
+  gem 'rspec', '~> 3.0'
+  gem  'debugger', '>= 1.6.6'
   gem 'pry-debugger'
   gem 'rake'
 end
