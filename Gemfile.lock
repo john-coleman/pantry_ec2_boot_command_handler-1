@@ -1,107 +1,100 @@
 GIT
   remote: git@github.com:wongatech/pantry_daemon_common.git
-  revision: f3a1a0ec0bbcfd7b6571c112b0847a2215c168a8
-  tag: v0.2.2
+  revision: 3d6dc89242918aefc9d903da1867ba0fb0207302
+  tag: v0.2.6
   specs:
-    pantry_daemon_common (0.2.2)
+    pantry_daemon_common (0.2.6)
       aws-sdk
       daemons
-      em-winrm
+      em-winrm (>= 0.5.5)
       net-ssh
       net-ssh-multi
       rest-client
       syslogger
 
-GIT
-  remote: https://github.com/besol/em-winrm.git
-  revision: 3a61bf6246666a5260ec0811db045da318e0d4af
-  specs:
-    em-winrm (0.6.0)
-      eventmachine
-      mixlib-log
-      uuidtools
-      winrm
-
 GEM
   remote: https://rubygems.org/
   specs:
-    activesupport (4.0.2)
-      i18n (~> 0.6, >= 0.6.4)
-      minitest (~> 4.2)
-      multi_json (~> 1.3)
+    activesupport (4.1.1)
+      i18n (~> 0.6, >= 0.6.9)
+      json (~> 1.7, >= 1.7.7)
+      minitest (~> 5.1)
       thread_safe (~> 0.1)
-      tzinfo (~> 0.3.37)
-    akami (1.2.0)
+      tzinfo (~> 1.1)
+    akami (1.2.2)
       gyoku (>= 0.4.0)
-      nokogiri (>= 1.4.0)
-    atomic (1.1.14)
-    aws-sdk (1.32.0)
+      nokogiri
+    aws-sdk (1.42.0)
       json (~> 1.4)
       nokogiri (>= 1.4.4)
-      uuidtools (~> 2.1)
     builder (3.2.2)
     celluloid (0.15.2)
       timers (~> 1.1.0)
     coderay (1.1.0)
-    columnize (0.3.6)
+    columnize (0.8.9)
     daemons (1.1.9)
-    debugger (1.6.5)
+    debugger (1.6.7)
       columnize (>= 0.3.1)
       debugger-linecache (~> 1.2.0)
-      debugger-ruby_core_source (~> 1.3.1)
+      debugger-ruby_core_source (~> 1.3.5)
     debugger-linecache (1.2.0)
-    debugger-ruby_core_source (1.3.1)
+    debugger-ruby_core_source (1.3.5)
     diff-lcs (1.2.5)
-    docile (1.1.2)
+    docile (1.1.4)
+    em-winrm (0.5.5)
+      eventmachine (~> 1.0.0)
+      mixlib-log (>= 1.3.0)
+      uuidtools (~> 2.1.1)
+      winrm (~> 1.1.2)
     eventmachine (1.0.3)
     ffi (1.9.3)
-    formatador (0.2.4)
+    formatador (0.2.5)
     gssapi (1.0.3)
       ffi (>= 1.0.1)
-    guard (2.3.0)
+    guard (2.6.1)
       formatador (>= 0.2.4)
-      listen (~> 2.1)
+      listen (~> 2.7)
       lumberjack (~> 1.0)
       pry (>= 0.9.12)
       thor (>= 0.18.1)
     guard-bundler (2.0.0)
       bundler (~> 1.0)
       guard (~> 2.2)
-    guard-rspec (4.2.4)
+    guard-rspec (4.2.10)
       guard (~> 2.1)
       rspec (>= 2.14, < 4.0)
     gyoku (1.1.1)
       builder (>= 2.1.2)
-    httpclient (2.3.4.1)
+    httpclient (2.4.0)
     httpi (0.9.7)
       rack
     i18n (0.6.9)
     json (1.8.1)
-    listen (2.4.0)
+    listen (2.7.7)
       celluloid (>= 0.15.2)
       rb-fsevent (>= 0.9.3)
       rb-inotify (>= 0.9)
     little-plugger (1.1.3)
-    logging (1.8.1)
+    logging (1.8.2)
       little-plugger (>= 1.1.3)
-      multi_json (>= 1.3.6)
-    lumberjack (1.0.4)
+      multi_json (>= 1.8.4)
+    lumberjack (1.0.6)
     method_source (0.8.2)
-    mime-types (2.0)
-    mini_portile (0.5.2)
-    minitest (4.7.5)
+    mime-types (2.3)
+    mini_portile (0.6.0)
+    minitest (5.3.4)
     mixlib-log (1.6.0)
-    multi_json (1.8.4)
-    net-ssh (2.7.0)
+    multi_json (1.10.1)
+    net-ssh (2.9.1)
     net-ssh-gateway (1.2.0)
       net-ssh (>= 2.6.5)
     net-ssh-multi (1.2.0)
       net-ssh (>= 2.6.5)
       net-ssh-gateway (>= 1.2.0)
-    nokogiri (1.6.1)
-      mini_portile (~> 0.5.0)
+    nokogiri (1.6.2.1)
+      mini_portile (= 0.6.0)
     nori (1.1.5)
-    pry (0.9.12.4)
+    pry (0.9.12.6)
       coderay (~> 1.0)
       method_source (~> 0.8)
       slop (~> 3.4)
@@ -109,22 +102,24 @@ GEM
       debugger (~> 1.3)
       pry (~> 0.9.10)
     rack (1.5.2)
-    rake (10.1.1)
+    rake (10.3.2)
     rb-fsevent (0.9.4)
-    rb-inotify (0.9.3)
+    rb-inotify (0.9.5)
       ffi (>= 0.5.0)
     rest-client (1.6.7)
       mime-types (>= 1.16)
-    rspec (2.14.1)
-      rspec-core (~> 2.14.0)
-      rspec-expectations (~> 2.14.0)
-      rspec-mocks (~> 2.14.0)
-    rspec-core (2.14.7)
-    rspec-expectations (2.14.4)
-      diff-lcs (>= 1.1.3, < 2.0)
-    rspec-fire (1.3.0)
-      rspec (>= 2.11, < 4)
-    rspec-mocks (2.14.4)
+    rspec (3.0.0)
+      rspec-core (~> 3.0.0)
+      rspec-expectations (~> 3.0.0)
+      rspec-mocks (~> 3.0.0)
+    rspec-core (3.0.0)
+      rspec-support (~> 3.0.0)
+    rspec-expectations (3.0.0)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.0.0)
+    rspec-mocks (3.0.1)
+      rspec-support (~> 3.0.0)
+    rspec-support (3.0.0)
     rubyntlm (0.1.1)
     savon (0.9.5)
       akami (~> 1.0)
@@ -141,13 +136,13 @@ GEM
     simplecov-html (0.8.0)
     simplecov-rcov (0.2.3)
       simplecov (>= 0.4.1)
-    slop (3.4.7)
+    slop (3.5.0)
     syslogger (1.5.1)
-    thor (0.18.1)
-    thread_safe (0.1.3)
-      atomic
+    thor (0.19.1)
+    thread_safe (0.3.4)
     timers (1.1.0)
-    tzinfo (0.3.38)
+    tzinfo (1.2.1)
+      thread_safe (~> 0.1)
     uuidtools (2.1.4)
     wasabi (1.0.0)
       nokogiri (>= 1.4.0)
@@ -165,15 +160,14 @@ PLATFORMS
 
 DEPENDENCIES
   activesupport
-  aws-sdk
+  aws-sdk (~> 1.25)
   daemons
-  em-winrm!
+  debugger (>= 1.6.6)
   guard-bundler
   guard-rspec
   pantry_daemon_common!
   pry-debugger
   rake
-  rspec
-  rspec-fire
+  rspec (~> 3.0)
   simplecov
   simplecov-rcov

@@ -6,8 +6,9 @@ require 'timeout'
 module Wonga
   module Daemon
     class EC2BootCommandHandler
-      def initialize(ec2 = AWS::EC2.new, publisher, logger)
+      def initialize(ec2 = AWS::EC2.new, config, publisher, logger)
         @ec2 = ec2
+        @config = config
         @publisher = publisher
         @logger = logger
       end
@@ -62,12 +63,21 @@ module Wonga
       end
 
       def tag_instance!(instance, message)
-        tags = tags_from_message(message)
-        instance.tags.set(tags)
-        instance.tags["pantry_request_id"] == message["pantry_request_id"].to_s
-      rescue Exception => e
-        @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["name"]} failed to tag with error: #{e.inspect}")
-        @logger.error(e.backtrace)
+        i = 0
+        begin
+          tags = tags_from_message(message)
+          instance.tags.set(tags)
+          instance.tags["pantry_request_id"] == message["pantry_request_id"].to_s
+        rescue Exception => e
+          i += 1
+          if i < @config['retries'].to_i
+            sleep @config['retry_delay'].to_i
+            retry
+          end
+          @logger.error("Instance #{message["pantry_request_id"]} - name: #{message["name"]} failed to tag with error: #{e.inspect}")
+          @logger.error(e.backtrace)
+          false
+        end
       end
 
       def tag_volumes!(instance, message)
