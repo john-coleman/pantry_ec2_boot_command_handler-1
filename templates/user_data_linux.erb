@@ -8,4 +8,5 @@ if [ -n "$(grep '127.0.1.1' /etc/hosts)" ]; then
 else
     sed -i -e '/127.0.0.1.*/{:a;n;/^$/!ba;i\127.0.1.1 <%= message["instance_name"] %>.<%= message["domain"] %> <%= message["instance_name"] %>' -e '}' /etc/hosts
 fi
+apt-get update
 
