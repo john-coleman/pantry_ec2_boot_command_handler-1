@@ -2,7 +2,12 @@
 <% if message.has_key?("instance_name") %>
 NETDOM RENAMECOMPUTER %COMPUTERNAME% /NewName:<%= message["instance_name"] %> /Force
 <% end %>
-<% if !message["http_proxy"].nil? %>
+<% if message["http_proxy"].nil? %>
+REG delete HKLM\Environment /F /V https_proxy
+REG delete HKCU\Environment /F /V https_proxy
+REG delete HKLM\Environment /F /V http_proxy
+REG delete HKCU\Environment /F /V http_proxy
+<% else %>
 setx http_proxy <%= message["http_proxy"] %> /M
 setx HTTPS_PROXY <%= message["http_proxy"] %> /M
 setx NO_PROXY "<%= message["domain"] %>,example.com,wonga.com" /M
