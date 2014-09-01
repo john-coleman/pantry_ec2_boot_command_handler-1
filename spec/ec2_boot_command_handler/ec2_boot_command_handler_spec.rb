@@ -57,7 +57,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
       context "when no proxy attribute is provided" do
         it "requests machine with proxy" do
           expect(instances).to receive(:create) do |args|
-            expect(args[:user_data]).not_to include('PROXY')
+            expect(args[:user_data]).not_to include('SETX HTTP_PROXY')
             created_instance
           end
           subject.handle_message(message) rescue nil
@@ -68,7 +68,7 @@ describe Wonga::Daemon::EC2BootCommandHandler do
         let(:message_proxy)   { message.merge({"http_proxy" => "http://proxy.herp.derp:0"}) }
         it "requests machine with proxy" do
           instances.stub(:create) do |args|
-            expect(args[:user_data]).to include('PROXY')
+            expect(args[:user_data]).to include('SETX HTTP_PROXY')
             created_instance
           end
           subject.handle_message(message_proxy) rescue nil
