@@ -3,14 +3,22 @@
 NETDOM RENAMECOMPUTER %COMPUTERNAME% /NewName:<%= message["instance_name"] %> /Force
 <% end %>
 <% if message["http_proxy"].nil? %>
-REG delete HKLM\Environment /F /V https_proxy
-REG delete HKCU\Environment /F /V https_proxy
-REG delete HKLM\Environment /F /V http_proxy
-REG delete HKCU\Environment /F /V http_proxy
+REG DELETE HKLM\Environment /F /V HTTP_PROXY
+REG DELETE HKCU\Environment /F /V HTTP_PROXY
+REG DELETE HKLM\Environment /F /V HTTPS_PROXY
+REG DELETE HKCU\Environment /F /V HTTPS_PROXY
+REG DELETE HKLM\Environment /F /V NO_PROXY
+REG DELETE HKCU\Environment /F /V NO_PROXY
+REG DELETE "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v HTTP_PROXY /f
+REG DELETE "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v HTTPS_PROXY /f
+REG DELETE "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v NO_PROXY /f
+FOR /F %U IN ('reg query hku') DO reg delete %U\Environment /v HTTP_PROXY /f
+FOR /F %U IN ('reg query hku') DO reg delete %U\Environment /v HTTPS_PROXY /f
+FOR /F %U IN ('reg query hku') DO reg delete %U\Environment /v NO_PROXY /f
 <% else %>
-setx http_proxy <%= message["http_proxy"] %> /M
-setx HTTPS_PROXY <%= message["http_proxy"] %> /M
-setx NO_PROXY "<%= message["domain"] %>,example.com,wonga.com" /M
+SETX HTTP_PROXY <%= message["http_proxy"] %> /M
+SETX HTTPS_PROXY <%= message["http_proxy"] %> /M
+SETX NO_PROXY "<%= message["domain"] %>,example.com,wonga.com" /M
 <% end %>
 winrm quickconfig -q & winrm set winrm/config/winrs @{MaxMemoryPerShellMB="2048"} & winrm set winrm/config/winrs @{MaxConcurrentUsers="100"} & winrm set winrm/config/winrs @{MaxProcessesPerShell="0"} & winrm set winrm/config/winrs @{MaxShellsPerUser="0"} & winrm set winrm/config @{MaxTimeoutms="1800000"} & winrm set winrm/config/service @{AllowUnencrypted="true"} & winrm set winrm/config/service/auth @{Basic="true"} & winrm set winrm/config/service/auth @{CredSSP="true"} & winrm set winrm/config/client @{TrustedHosts="*"}
 winmgmt -standalone
