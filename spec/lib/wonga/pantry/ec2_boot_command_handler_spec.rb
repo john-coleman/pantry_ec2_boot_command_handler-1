@@ -11,6 +11,12 @@ describe Wonga::Pantry::EC2BootCommandHandler do
   let(:publisher) { instance_double('Wonga::Daemon::Publisher', publish: message) }
   let(:request_id) { 2 }
   let(:retry_count) { 0 }
+  let(:config) {
+    {
+      'retries' => retry_count,
+      'shutdown_schedule' => 'bluemoon'
+    }
+  }
   let(:message) {
     {
       'ami' => 'ami-fedfd48a',
@@ -31,13 +37,12 @@ describe Wonga::Pantry::EC2BootCommandHandler do
       'platform' => 'windows',
       'protected' => false,
       'security_group_ids' => ['sg-f94dc88e'],
-      'shutdown_schedule' => 'sometimes',
       'subnet_id' => 'subnet-f3c63a98',
       'team_id' => 'test team',
     }
   }
 
-  subject {described_class.new(ec2, {'retries' => retry_count}, publisher, logger) }
+  subject {described_class.new(ec2, config, publisher, logger) }
 
   it_behaves_like 'handler'
 
@@ -71,7 +76,8 @@ describe Wonga::Pantry::EC2BootCommandHandler do
       end
 
       context 'when proxy attribute is provided' do
-        let(:message_proxy)   { message.merge({'http_proxy' => 'http://proxy.herp.derp:0'}) }
+        let(:message_proxy) { message.merge({'http_proxy' => 'http://proxy.herp.derp:0'}) }
+
         it 'requests instance with proxy' do
           instances.stub(:create) do |args|
             expect(args[:user_data]).to include('SETX HTTP_PROXY')
@@ -95,16 +101,33 @@ describe Wonga::Pantry::EC2BootCommandHandler do
         end
       end
 
-      it 'tags requested instance, logs message and raises exception' do
-        expect(logger).to receive(:info).with(/requested/).ordered
-        expect(tags).to receive(:set).with(hash_including(
-          'Name' => "#{message['instance_name']}.#{message['domain']}",
-          'pantry_request_id' => request_id.to_s,
-          'shutdown_schedule' => message['shutdown_schedule'],
-          'team_id'           => message['team_id'].to_s
-        )).ordered
-        expect(logger).to receive(:info).with(/tagged/).ordered
-        expect { subject.handle_message(message) }.to raise_exception
+      context 'when shutdown schedule specified' do
+        let(:message_shutdown) { message.merge({'shutdown_schedule' => 'sometimes'}) }
+        it 'tags requested instance, logs info and raises exception' do
+          expect(logger).to receive(:info).with(/requested/).ordered
+          expect(tags).to receive(:set).with(hash_including(
+            'Name' => "#{message['instance_name']}.#{message['domain']}",
+            'pantry_request_id' => request_id.to_s,
+            'shutdown_schedule' => message_shutdown['shutdown_schedule'],
+            'team_id'           => message_shutdown['team_id'].to_s
+          )).ordered
+          expect(logger).to receive(:info).with(/tagged/).ordered
+          expect { subject.handle_message(message_shutdown) }.to raise_exception
+        end
+      end
+
+      context 'when no shutdown schedule specified' do
+        it 'tags requested instance, logs info and raises exception' do
+          expect(logger).to receive(:info).with(/requested/).ordered
+          expect(tags).to receive(:set).with(hash_including(
+            'Name' => "#{message['instance_name']}.#{message['domain']}",
+            'pantry_request_id' => request_id.to_s,
+            'shutdown_schedule' => config['shutdown_schedule'],
+            'team_id'           => message['team_id'].to_s
+          )).ordered
+          expect(logger).to receive(:info).with(/tagged/).ordered
+          expect { subject.handle_message(message) }.to raise_exception
+        end
       end
 
       context "when instance can't be requested" do
@@ -132,7 +155,7 @@ describe Wonga::Pantry::EC2BootCommandHandler do
 
     context "when instance can't return current status" do
       let(:ec2_status) { nil }
-      it 'logs message and raises exception' do
+      it 'logs error and raises exception' do
         expect(logger).to receive(:error).with(/unexpected state/)
         expect{ subject.handle_message(message) }.to raise_exception
       end
@@ -140,7 +163,7 @@ describe Wonga::Pantry::EC2BootCommandHandler do
 
     context "when instance's status is pending" do
       let(:ec2_status) { :pending }
-      it 'logs message raises exception' do
+      it 'logs info raises exception' do
         expect(logger).to receive(:info).with(/pending/)
         expect{ subject.handle_message(message) }.to raise_exception
       end
@@ -196,7 +219,7 @@ describe Wonga::Pantry::EC2BootCommandHandler do
           allow(logger).to receive(:error).with(ec2_status_regex)
         end
 
-        it 'logs message and raises exception' do
+        it 'logs error and raises exception' do
           expect(logger).to receive(:error).with(ec2_status_regex)
           expect { subject.handle_message(message) }.to raise_exception
         end
