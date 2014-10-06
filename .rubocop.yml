@@ -1,0 +1,15 @@
+AllCops:
+  Exclude:
+    - '**/metadata.rb'
+    - '**/*.gemspec'
+    - '**/version.rb'
+
+ClassAndModuleChildren:
+  Enabled: false
+Documentation:
+  Enabled: false
+
+CollectionMethods:
+  Enabled: false
+LineLength:
+  Max: 160
