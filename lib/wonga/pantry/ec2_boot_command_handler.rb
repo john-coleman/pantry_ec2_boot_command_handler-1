@@ -113,8 +113,9 @@ module Wonga
       def tags_from_message(message)
         {
           'Name'              => "#{message['instance_name']}.#{message['domain']}",
-          'team_id'           => message['team_id'].to_s,
-          'pantry_request_id' => message['pantry_request_id'].to_s
+          'pantry_request_id' => message['pantry_request_id'].to_s,
+          'shutdown_schedule' => message['shutdown_schedule'] || @config['shutdown_schedule_default'],
+          'team_id'           => message['team_id'].to_s
         }
       end
     end

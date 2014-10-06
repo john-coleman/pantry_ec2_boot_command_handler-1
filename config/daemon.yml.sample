@@ -25,6 +25,7 @@ development:
     error_arn: daemon_specific_error_arn
   retries: 5
   retry_delay: 1
+  shutdown_schedule: daily
 test:
   aws:
     access_key_id: some_aws_iam_access_key_id
@@ -48,6 +49,7 @@ test:
     error_arn: daemon_specific_error_arn
   retries: 5
   retry_delay: 1
+  shutdown_schedule: daily
 production:
   aws:
     access_key_id: some_aws_iam_access_key_id
@@ -69,3 +71,6 @@ production:
   sns:
     topic_arn: daemon_specific_topic_arn
     error_arn: daemon_specific_error_arn
+  retries: 5
+  retry_delay: 1
+  shutdown_schedule: daily

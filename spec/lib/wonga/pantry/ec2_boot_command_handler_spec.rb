@@ -13,26 +13,27 @@ describe Wonga::Pantry::EC2BootCommandHandler do
   let(:retry_count) { 0 }
   let(:message) {
     {
-        'pantry_request_id' => request_id,
-        'instance_name' => 'sqs-test',
-        'domain' => 'blop.hurr',
-        'flavor' => 't1.micro',
-        'ami' => 'ami-fedfd48a',
-        'team_id' => 'test team',
-        'subnet_id' => 'subnet-f3c63a98',
-        'security_group_ids' => ['sg-f94dc88e'],
-        'aws_key_pair_name' => 'eu-test-1',
-        'platform' => 'windows',
-        'protected' => false,
-        'block_device_mappings' =>
-      [
-        { virtual_name: 'some string',
+      'ami' => 'ami-fedfd48a',
+      'aws_key_pair_name' => 'eu-test-1',
+      'block_device_mappings' => [
+        {
+          virtual_name: 'some string',
           device_name: 'some string',
           ebs: {
             snapshot_id: 'some ide'
           }
-      }
-      ]
+        }
+      ],
+      'domain' => 'blop.hurr',
+      'flavor' => 't1.micro',
+      'instance_name' => 'sqs-test',
+      'pantry_request_id' => request_id,
+      'platform' => 'windows',
+      'protected' => false,
+      'security_group_ids' => ['sg-f94dc88e'],
+      'shutdown_schedule' => 'sometimes',
+      'subnet_id' => 'subnet-f3c63a98',
+      'team_id' => 'test team',
     }
   }
 
@@ -96,7 +97,12 @@ describe Wonga::Pantry::EC2BootCommandHandler do
 
       it 'tags requested instance, logs message and raises exception' do
         expect(logger).to receive(:info).with(/requested/).ordered
-        expect(tags).to receive(:set).with(hash_including('pantry_request_id' => request_id.to_s)).ordered
+        expect(tags).to receive(:set).with(hash_including(
+          'Name' => "#{message['instance_name']}.#{message['domain']}",
+          'pantry_request_id' => request_id.to_s,
+          'shutdown_schedule' => message['shutdown_schedule'],
+          'team_id'           => message['team_id'].to_s
+        )).ordered
         expect(logger).to receive(:info).with(/tagged/).ordered
         expect { subject.handle_message(message) }.to raise_exception
       end
