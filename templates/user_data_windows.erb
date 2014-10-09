@@ -12,9 +12,9 @@ REG DELETE HKCU\Environment /F /V NO_PROXY 2> nul
 REG DELETE "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v HTTP_PROXY /f 2> nul
 REG DELETE "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v HTTPS_PROXY /f 2> nul
 REG DELETE "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v NO_PROXY /f 2> nul
-FOR /F %U IN ('reg query hku') DO reg delete %U\Environment /v HTTP_PROXY /f 2> nul
-FOR /F %U IN ('reg query hku') DO reg delete %U\Environment /v HTTPS_PROXY /f 2> nul
-FOR /F %U IN ('reg query hku') DO reg delete %U\Environment /v NO_PROXY /f 2> nul
+FOR /F %%U IN ('reg query hku') DO reg delete %%U\Environment /v HTTP_PROXY /f 2> nul
+FOR /F %%U IN ('reg query hku') DO reg delete %%U\Environment /v HTTPS_PROXY /f 2> nul
+FOR /F %%U IN ('reg query hku') DO reg delete %%U\Environment /v NO_PROXY /f 2> nul
 <% else %>
 SETX HTTP_PROXY <%= message["http_proxy"] %> /M
 SETX HTTPS_PROXY <%= message["http_proxy"] %> /M
@@ -23,7 +23,6 @@ SETX NO_PROXY "<%= message["domain"] %>,example.com,wonga.com" /M
 winrm quickconfig -q & winrm set winrm/config/winrs @{MaxMemoryPerShellMB="3072"} & winrm set winrm/config/winrs @{MaxConcurrentUsers="100"} & winrm set winrm/config/winrs @{MaxProcessesPerShell="0"} & winrm set winrm/config/winrs @{MaxShellsPerUser="0"} & winrm set winrm/config @{MaxTimeoutms="1800000"} & winrm set winrm/config/service @{AllowUnencrypted="true"} & winrm set winrm/config/service/auth @{Basic="true"} & winrm set winrm/config/service/auth @{CredSSP="true"} & winrm set winrm/config/client @{TrustedHosts="*"}
 winmgmt /standalonehost
 netsh advfirewall firewall add rule name="WMIFixedPort" dir=in action=allow protocol=TCP localport=24158
-
 </script>
 <powershell>
 <% if (message.has_key?("windows_set_admin_password")) && (message["windows_set_admin_password"] == true) && (message.has_key?("windows_set_admin_password")) %>
