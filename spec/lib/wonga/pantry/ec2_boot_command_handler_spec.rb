@@ -9,6 +9,7 @@ describe Wonga::Pantry::EC2BootCommandHandler do
   let(:filtered_instance) { nil }
   let(:logger) { instance_double('Logger').as_null_object }
   let(:publisher) { instance_double('Wonga::Daemon::Publisher', publish: message) }
+  let(:error_publisher) { instance_double('Wonga::Daemon::Publisher', publish: message) }
   let(:request_id) { 2 }
   let(:retry_count) { 0 }
   let(:config) {
@@ -42,7 +43,7 @@ describe Wonga::Pantry::EC2BootCommandHandler do
     }
   }
 
-  subject {described_class.new(ec2, config, publisher, logger) }
+  subject {described_class.new(ec2, config, publisher, error_publisher, logger) }
 
   it_behaves_like 'handler'
 
@@ -210,7 +211,7 @@ describe Wonga::Pantry::EC2BootCommandHandler do
       end
     end
 
-    [ :shutting_down, :terminated, :stopping, :stopped ].each do |status|
+    [ :shutting_down, :stopping, :stopped ].each do |status|
       context "when instance's status is #{status.to_s}" do
         let(:ec2_status) { status }
         let(:ec2_status_regex) { Regexp.new(status.to_s) }
@@ -223,6 +224,20 @@ describe Wonga::Pantry::EC2BootCommandHandler do
           expect(logger).to receive(:error).with(ec2_status_regex)
           expect { subject.handle_message(message) }.to raise_exception
         end
+      end
+    end
+
+    context '#handle_message publishes message to error topic for terminated instance' do
+      let(:ec2_status) { :terminated }
+
+      it 'publishes message to error topic' do
+        subject.handle_message(message)
+        expect(error_publisher).to have_received(:publish).with(message)
+      end
+
+      it 'does not publish message to topic' do
+        subject.handle_message(message)
+        expect(publisher).to_not have_received(:publish)
       end
     end
   end

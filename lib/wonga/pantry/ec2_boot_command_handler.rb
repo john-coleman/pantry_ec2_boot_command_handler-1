@@ -6,10 +6,11 @@ require 'timeout'
 module Wonga
   module Pantry
     class EC2BootCommandHandler
-      def initialize(ec2 = AWS::EC2.new, config, publisher, logger)
+      def initialize(ec2 = AWS::EC2.new, config, publisher, error_publisher, logger)
         @ec2 = ec2
         @config = config
         @publisher = publisher
+        @error_publisher = error_publisher
         @logger = logger
       end
 
@@ -21,25 +22,28 @@ module Wonga
         instance = find_machine_by_request_id(message['pantry_request_id'])
         if instance
           case instance.status
-          when :stopping, :stopped, :shutting_down, :terminated
-            @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status.to_s}")
-            raise
-          when :pending
-            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status.to_s}")
-            raise
-          when :running
-            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status.to_s}")
-            raise unless tag_volumes!(instance, message)
-            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} volumes tagged, publishing event")
-            @publisher.publish(message.merge({
-              instance_id:  instance.id,
-              ip_address:   instance.private_ip_address,
-              private_ip:   instance.private_ip_address
-            }))
-            return
-          else
-            @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} unexpected state: #{instance.status.to_s}")
-            raise
+            when :terminated
+              send_error_message(message)
+              return
+            when :stopping, :stopped, :shutting_down
+              @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status.to_s}")
+              raise
+            when :pending
+              @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status.to_s}")
+              raise
+            when :running
+              @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status.to_s}")
+              raise unless tag_volumes!(instance, message)
+              @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} volumes tagged, publishing event")
+              @publisher.publish(message.merge({
+                instance_id:  instance.id,
+                ip_address:   instance.private_ip_address,
+                private_ip:   instance.private_ip_address
+              }))
+              return
+            else
+              @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} unexpected state: #{instance.status.to_s}")
+              raise
           end
         else
           instance = request_instance(message)
@@ -50,6 +54,11 @@ module Wonga
         end
         @logger.error('Unexpected WTF state encountered!')
         raise
+      end
+
+      def send_error_message(message)
+        @logger.info 'Send request to cleanup an instance'
+        @error_publisher.publish(message)
       end
 
       def render_user_data(message)
