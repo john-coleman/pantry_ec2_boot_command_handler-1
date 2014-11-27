@@ -22,38 +22,38 @@ module Wonga
         instance = find_machine_by_request_id(message['pantry_request_id'])
         if instance
           case instance.status
-            when :terminated
-              send_error_message(message)
-              return
-            when :stopping, :stopped, :shutting_down
-              @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status.to_s}")
-              raise
-            when :pending
-              @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status.to_s}")
-              raise
-            when :running
-              @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status.to_s}")
-              raise unless tag_volumes!(instance, message)
-              @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} volumes tagged, publishing event")
-              @publisher.publish(message.merge({
-                instance_id:  instance.id,
-                ip_address:   instance.private_ip_address,
-                private_ip:   instance.private_ip_address
-              }))
-              return
-            else
-              @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} unexpected state: #{instance.status.to_s}")
-              raise
+          when :terminated
+            send_error_message(message)
+            return
+          when :stopping, :stopped, :shutting_down
+            @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status}")
+            fail
+          when :pending
+            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status}")
+            fail
+          when :running
+            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status}")
+            fail unless tag_volumes!(instance, message)
+            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} volumes tagged, publishing event")
+            @publisher.publish(message.merge(
+              instance_id:  instance.id,
+              ip_address:   instance.private_ip_address,
+              private_ip:   instance.private_ip_address
+            ))
+            return
+          else
+            @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} unexpected state: #{instance.status}")
+            fail
           end
         else
           instance = request_instance(message)
           @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} requested")
           tag_instance!(instance, message)
           @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} tagged")
-          raise
+          fail
         end
         @logger.error('Unexpected WTF state encountered!')
-        raise
+        fail
       end
 
       def send_error_message(message)
@@ -62,8 +62,8 @@ module Wonga
       end
 
       def render_user_data(message)
-        template = IO.read(File.join(File.dirname(__FILE__),'..','..','..','templates',"user_data_#{message['platform']}.erb"))
-        ERB.new(template, nil, '<>').result(message.instance_eval{binding})
+        template = IO.read(File.join(File.dirname(__FILE__), '..', '..', '..', 'templates', "user_data_#{message['platform']}.erb"))
+        ERB.new(template, nil, '<>').result(message.instance_eval { binding })
       end
 
       def request_instance(message)
@@ -73,7 +73,7 @@ module Wonga
           key_name:                 message['aws_key_pair_name'],
           subnet:                   message['subnet_id'],
           disable_api_termination:  message['protected'],
-          block_device_mappings:    message['block_device_mappings'].map{|hash| hash.deep_symbolize_keys },
+          block_device_mappings:    message['block_device_mappings'].map(&:deep_symbolize_keys),
           security_group_ids:       Array(message['security_group_ids']),
           user_data:                render_user_data(message),
           count:                    1
@@ -86,7 +86,7 @@ module Wonga
           tags = tags_from_message(message)
           instance.tags.set(tags)
           instance.tags['pantry_request_id'] == message['pantry_request_id'].to_s
-        rescue Exception => e
+        rescue Exception => e # rubocop:disable Lint/RescueException
           i += 1
           if i < @config['retries'].to_i
             sleep @config['retry_delay'].to_i
@@ -110,10 +110,10 @@ module Wonga
           end
 
           vol_tags = tags.merge(
-            {
+
               'Name'    => vol_name,
               'device'  => device
-            }
+
           )
           attachment.volume.tags.set(vol_tags)
         end
@@ -130,4 +130,3 @@ module Wonga
     end
   end
 end
-
