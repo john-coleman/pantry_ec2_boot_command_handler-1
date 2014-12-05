@@ -65,6 +65,38 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
         expect { subject.handle_message(message) }.to raise_exception
       end
 
+      context 'when message contains iam_instance_profile' do
+        let(:message) do
+          {
+            'ami' => 'ami-fedfd48a',
+            'aws_key_pair_name' => 'eu-test-1',
+            'block_device_mappings' => [
+              {
+                virtual_name: 'some string',
+                device_name: 'some string',
+                ebs: {
+                  snapshot_id: 'some ide'
+                }
+              }
+            ],
+            'domain' => 'blop.hurr',
+            'flavor' => 't1.micro',
+            'instance_name' => 'sqs-test',
+            'pantry_request_id' => request_id,
+            'platform' => 'windows',
+            'protected' => false,
+            'security_group_ids' => ['sg-f94dc88e'],
+            'subnet_id' => 'subnet-f3c63a98',
+            'team_id' => 'test team',
+            'iam_instance_profile' => 'test_iam'
+          }
+        end
+        it 'requests an instance with iam' do
+          expect(instances).to receive(:create).with(hash_including(iam_instance_profile: 'test_iam'))
+          expect { subject.handle_message(message) }.to raise_exception
+        end
+      end
+
       context 'when no proxy attribute is provided' do
         it 'requests instance without proxy' do
           expect(instances).to receive(:create) do |args|

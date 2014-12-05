@@ -67,7 +67,7 @@ module Wonga
       end
 
       def request_instance(message)
-        @ec2.instances.create(
+        params = {
           image_id:                 message['ami'],
           instance_type:            message['flavor'],
           key_name:                 message['aws_key_pair_name'],
@@ -77,7 +77,9 @@ module Wonga
           security_group_ids:       Array(message['security_group_ids']),
           user_data:                render_user_data(message),
           count:                    1
-        )
+        }
+        params = params.merge(iam_instance_profile: message['iam_instance_profile']) if message['iam_instance_profile']
+        @ec2.instances.create(params)
       end
 
       def tag_instance!(instance, message)
