@@ -208,7 +208,7 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
       end
 
       it 'merges IP address with message for publishing' do
-        expect(logger).to receive(:info).with(/volumes tagged, publishing event/)
+        expect(logger).to receive(:info).with(/volumes tagged/)
         subject.handle_message(message)
         expect(publisher).to have_received(:publish).with(merged_message)
       end

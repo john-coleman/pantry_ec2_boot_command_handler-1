@@ -34,7 +34,7 @@ module Wonga
           when :running
             @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status}")
             fail unless tag_volumes!(instance, message)
-            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} volumes tagged, publishing event")
+            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} volumes tagged")
             @publisher.publish(message.merge(
               instance_id:  instance.id,
               ip_address:   instance.private_ip_address,
