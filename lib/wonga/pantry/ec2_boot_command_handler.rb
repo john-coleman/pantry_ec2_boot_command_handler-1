@@ -126,7 +126,8 @@ module Wonga
           'Name'              => "#{message['instance_name']}.#{message['domain']}",
           'pantry_request_id' => message['pantry_request_id'].to_s,
           'shutdown_schedule' => message['shutdown_schedule'] || @config['shutdown_schedule'],
-          'team_id'           => message['team_id'].to_s
+          'team_id'           => message['team_id'].to_s,
+          'team_name'         => message['team_name'].to_s
         }
       end
     end

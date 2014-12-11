@@ -38,7 +38,8 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
       'protected' => false,
       'security_group_ids' => ['sg-f94dc88e'],
       'subnet_id' => 'subnet-f3c63a98',
-      'team_id' => 'test team'
+      'team_id' => '000',
+      'team_name' => 'test team'
     }
   end
 
@@ -143,7 +144,8 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
             'Name' => "#{message['instance_name']}.#{message['domain']}",
             'pantry_request_id' => request_id.to_s,
             'shutdown_schedule' => message_shutdown['shutdown_schedule'],
-            'team_id'           => message_shutdown['team_id'].to_s
+            'team_id'           => message_shutdown['team_id'].to_s,
+            'team_name'           => message_shutdown['team_name'].to_s
           )).ordered
           expect(logger).to receive(:info).with(/tagged/).ordered
           expect { subject.handle_message(message_shutdown) }.to raise_exception
@@ -157,7 +159,8 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
             'Name' => "#{message['instance_name']}.#{message['domain']}",
             'pantry_request_id' => request_id.to_s,
             'shutdown_schedule' => config['shutdown_schedule'],
-            'team_id'           => message['team_id'].to_s
+            'team_id'           => message['team_id'].to_s,
+            'team_name'         => message['team_name'].to_s
           )).ordered
           expect(logger).to receive(:info).with(/tagged/).ordered
           expect { subject.handle_message(message) }.to raise_exception
