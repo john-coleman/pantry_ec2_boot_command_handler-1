@@ -140,13 +140,15 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
 
         it 'tags requested instance, logs info and raises exception' do
           expect(logger).to receive(:info).with(/requested/).ordered
-          expect(tags).to receive(:set).with(hash_including(
-            'Name' => "#{message['instance_name']}.#{message['domain']}",
-            'pantry_request_id' => request_id.to_s,
-            'shutdown_schedule' => message_shutdown['shutdown_schedule'],
-            'team_id'           => message_shutdown['team_id'].to_s,
-            'team_name'           => message_shutdown['team_name'].to_s
-          )).ordered
+          expect(tags).to receive(:set).with(
+            hash_including(
+              'Name' => "#{message['instance_name']}.#{message['domain']}",
+              'pantry_request_id' => request_id.to_s,
+              'shutdown_schedule' => message_shutdown['shutdown_schedule'],
+              'team_id'           => message_shutdown['team_id'].to_s,
+              'team_name'         => message_shutdown['team_name'].to_s
+            )
+          ).ordered
           expect(logger).to receive(:info).with(/tagged/).ordered
           expect { subject.handle_message(message_shutdown) }.to raise_exception
         end
@@ -155,13 +157,15 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
       context 'when no shutdown schedule specified' do
         it 'tags requested instance, logs info and raises exception' do
           expect(logger).to receive(:info).with(/requested/).ordered
-          expect(tags).to receive(:set).with(hash_including(
-            'Name' => "#{message['instance_name']}.#{message['domain']}",
-            'pantry_request_id' => request_id.to_s,
-            'shutdown_schedule' => config['shutdown_schedule'],
-            'team_id'           => message['team_id'].to_s,
-            'team_name'         => message['team_name'].to_s
-          )).ordered
+          expect(tags).to receive(:set).with(
+            hash_including(
+              'Name' => "#{message['instance_name']}.#{message['domain']}",
+              'pantry_request_id' => request_id.to_s,
+              'shutdown_schedule' => config['shutdown_schedule'],
+              'team_id'           => message['team_id'].to_s,
+              'team_name'         => message['team_name'].to_s
+            )
+          ).ordered
           expect(logger).to receive(:info).with(/tagged/).ordered
           expect { subject.handle_message(message) }.to raise_exception
         end
@@ -231,14 +235,18 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
       include_examples 'send message'
 
       it 'tags volumes' do
-        expect(vol_tags).to receive(:set).with(hash_including(
-          'Name' => "#{message['instance_name']}.#{message['domain']}_OS_VOL",
-          'device' => '/dev/sda1'
-        ))
-        expect(vol_tags).to receive(:set).with(hash_including(
-          'Name' => "#{message['instance_name']}.#{message['domain']}_VOL1",
-          'device' => '/dev/sda2'
-        ))
+        expect(vol_tags).to receive(:set).with(
+          hash_including(
+            'Name' => "#{message['instance_name']}.#{message['domain']}_OS_VOL",
+            'device' => '/dev/sda1'
+          )
+        )
+        expect(vol_tags).to receive(:set).with(
+          hash_including(
+            'Name' => "#{message['instance_name']}.#{message['domain']}_VOL1",
+            'device' => '/dev/sda2'
+          )
+        )
         subject.handle_message(message)
       end
 

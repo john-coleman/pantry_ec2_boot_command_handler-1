@@ -1,4 +1,4 @@
-require 'aws-sdk'
+require 'aws-sdk-v1'
 require 'erb'
 require 'active_support/core_ext/hash/keys'
 require 'timeout'
@@ -35,11 +35,11 @@ module Wonga
             @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status}")
             fail unless tag_volumes!(instance, message)
             @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} volumes tagged")
-            @publisher.publish(message.merge(
-              instance_id:  instance.id,
-              ip_address:   instance.private_ip_address,
-              private_ip:   instance.private_ip_address
-            ))
+            @publisher.publish(message.merge(instance_id: instance.id,
+                                             ip_address: instance.private_ip_address,
+                                             private_ip: instance.private_ip_address
+                                            )
+                              )
             return
           else
             @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} unexpected state: #{instance.status}")
@@ -111,12 +111,7 @@ module Wonga
             volume_count += 1
           end
 
-          vol_tags = tags.merge(
-
-              'Name'    => vol_name,
-              'device'  => device
-
-          )
+          vol_tags = tags.merge('Name' => vol_name, 'device' => device)
           attachment.volume.tags.set(vol_tags)
         end
       end
