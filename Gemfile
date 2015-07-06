@@ -1,8 +1,6 @@
 source 'https://rubygems.org'
 
 gem 'activesupport'
-gem 'aws-sdk-v1', '~> 1.25'
-gem 'daemons'
 gem 'pantry_daemon_common', git: 'git@github.com:wongatech/pantry_daemon_common.git'
 
 group :development do

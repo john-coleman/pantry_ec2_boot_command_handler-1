@@ -1,22 +1,15 @@
 require 'logger'
+require 'wonga/daemon/publisher'
 require_relative '../../../../lib/wonga/pantry/ec2_boot_command_handler'
 
 RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
-  let(:ec2) { instance_double('AWS::EC2', instances: instances) }
-  let(:instances) { instance_double('AWS::EC2::InstanceCollection', filter: [filtered_instance]) }
-  let(:instance_id) { 'i-fake1337' }
-  let(:filtered_instance) { nil }
-  let(:logger) { instance_double('Logger').as_null_object }
-  let(:publisher) { instance_double('Wonga::Daemon::Publisher', publish: message) }
-  let(:error_publisher) { instance_double('Wonga::Daemon::Publisher', publish: message) }
+  let(:logger) { instance_double(Logger).as_null_object }
+  let(:publisher) { instance_double(Wonga::Daemon::Publisher, publish: message) }
+  let(:error_publisher) { instance_double(Wonga::Daemon::Publisher, publish: message) }
   let(:request_id) { 2 }
   let(:retry_count) { 0 }
-  let(:config) do
-    {
-      'retries' => retry_count,
-      'shutdown_schedule' => 'bluemoon'
-    }
-  end
+  let(:config) { { 'retries' => retry_count } }
+
   let(:message) do
     {
       'ami' => 'ami-fedfd48a',
@@ -42,70 +35,61 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
       'team_name' => 'test team'
     }
   end
+  let(:ec2_resource) { Aws::EC2::Resource.new }
 
-  subject { described_class.new(ec2, config, publisher, error_publisher, logger) }
+  subject { described_class.new(ec2_resource, config, publisher, error_publisher, logger) }
 
   it_behaves_like 'handler'
 
   describe '#handle_message' do
-    context 'when instance does not already exist' do
-      let(:created_instance) { instance_double('AWS::EC2::Instance', tags: tags, id: instance_id) }
-      let(:tags)        { instance_double(AWS::EC2::ResourceTagCollection) }
+    context 'when instance does not exist' do
+      let(:instance_response) { { reservations: [{ instances: [instance_attributes] }] } }
+      let(:instance_attributes) { { tags: [key: 'pantry_request_i', value: request_id.to_s] } }
+      let(:response) { { reservations: [] } }
+      let(:create_response) { { instance_id: 'test' } }
 
       before(:each) do
-        allow(instances).to receive(:create).and_return(created_instance)
-        allow(tags).to receive(:[]).with('pantry_request_id').and_return(request_id)
-        allow(tags).to receive(:set)
-        allow(logger).to receive(:info).with(kind_of(String))
-        allow(logger).to receive(:error).with(kind_of(String))
+        ec2_resource.client.stub_responses(:run_instances, instances: [create_response])
+        ec2_resource.client.stub_responses(:describe_instances, response, instance_response)
+        ec2_resource.client.stub_responses :create_tags
       end
 
       it 'requests instance' do
-        expect(instances).to receive(:create)
-        expect(logger).to receive(:info).with(/requested/)
-        expect { subject.handle_message(message) }.to raise_exception
+        expect(ec2_resource.client).to receive(:run_instances).and_call_original
+        expect { subject.handle_message(message) }.to raise_error RuntimeError
+      end
+
+      it 'tags instance' do
+        expect(ec2_resource.client).to receive(:create_tags).and_wrap_original do |original, hash, &block|
+          expect(hash[:resources]).to eq ['test']
+          request_hash = hash[:tags].detect { |h| h[:key] == 'pantry_request_id' }
+          expect(request_hash[:value]).to eq request_id.to_s
+          original.call(hash, &block)
+        end
+        expect { subject.handle_message(message) }.to raise_error RuntimeError
       end
 
       context 'when message contains iam_instance_profile' do
         let(:message) do
-          {
-            'ami' => 'ami-fedfd48a',
-            'aws_key_pair_name' => 'eu-test-1',
-            'block_device_mappings' => [
-              {
-                virtual_name: 'some string',
-                device_name: 'some string',
-                ebs: {
-                  snapshot_id: 'some ide'
-                }
-              }
-            ],
-            'domain' => 'blop.hurr',
-            'flavor' => 't1.micro',
-            'instance_name' => 'sqs-test',
-            'pantry_request_id' => request_id,
-            'platform' => 'windows',
-            'protected' => false,
-            'security_group_ids' => ['sg-f94dc88e'],
-            'subnet_id' => 'subnet-f3c63a98',
-            'team_id' => 'test team',
-            'iam_instance_profile' => 'test_iam'
-          }
+          super().merge('iam_instance_profile' => profile)
         end
+
+        let(:profile) { 'test_iam' }
+
         it 'requests an instance with iam' do
-          expect(instances).to receive(:create).with(hash_including(iam_instance_profile: 'test_iam'))
-          expect { subject.handle_message(message) }.to raise_exception
+          expect(ec2_resource.client).to receive(:run_instances).with(hash_including(iam_instance_profile: { name: profile })).and_call_original
+          expect { subject.handle_message(message) }.to raise_error RuntimeError
         end
       end
 
       context 'when no proxy attribute is provided' do
         it 'requests instance without proxy' do
-          expect(instances).to receive(:create) do |args|
-            expect(args[:user_data]).not_to include('SETX HTTP_PROXY')
-            created_instance
+          expect(ec2_resource.client).to receive(:run_instances).and_wrap_original do |original, *args, &block|
+            expect(args[0][:user_data]).not_to match(/SETX HTTP_PROXY/)
+            original.call(*args, &block)
           end
-          expect(logger).to receive(:info).with(/requested/)
-          expect { subject.handle_message(message) }.to raise_exception
+
+          expect { subject.handle_message(message) }.to raise_error RuntimeError
         end
       end
 
@@ -113,78 +97,82 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
         let(:message_proxy) { message.merge('http_proxy' => 'http://proxy.herp.derp:0') }
 
         it 'requests instance with proxy' do
-          allow(instances).to receive(:create) do |args|
-            expect(args[:user_data]).to include('SETX HTTP_PROXY')
-            created_instance
+          expect(ec2_resource.client).to receive(:run_instances).and_wrap_original do |original, *args, &block|
+            expect(args[0][:user_data]).to match(/SETX HTTP_PROXY/)
+            original.call(*args, &block)
           end
-          expect(logger).to receive(:info).with(/requested/)
-          expect { subject.handle_message(message_proxy) }.to raise_exception
+
+          expect { subject.handle_message(message_proxy) }.to raise_error RuntimeError
         end
       end
 
       context 'when Linux platform specified' do
         let(:message_linux)   { message.merge('platform' => 'linux') }
         it 'requests instance with hostname set in user_data' do
-          allow(instances).to receive(:create) do |args|
-            expect(args[:user_data]).to include("#{message['instance_name']}.#{message['domain']}")
-            expect(args[:user_data]).to include("hostname #{message['instance_name']}")
-            created_instance
+          expect(ec2_resource.client).to receive(:run_instances).and_wrap_original do |original, *args, &block|
+            expect(args[0][:user_data]).to include("hostname #{message['instance_name']}")
+            expect(args[0][:user_data]).to include("#{message['instance_name']}.#{message['domain']}")
+            original.call(*args, &block)
           end
-          expect(logger).to receive(:info).with(/requested/)
-          expect { subject.handle_message(message_linux) }.to raise_exception
+
+          expect { subject.handle_message(message_linux) }.to raise_error RuntimeError
         end
       end
 
       context 'when shutdown schedule specified' do
         let(:message_shutdown) { message.merge('shutdown_schedule' => 'sometimes') }
 
-        it 'tags requested instance, logs info and raises exception' do
-          expect(logger).to receive(:info).with(/requested/).ordered
-          expect(tags).to receive(:set).with(
-            hash_including(
-              'Name' => "#{message['instance_name']}.#{message['domain']}",
-              'pantry_request_id' => request_id.to_s,
-              'shutdown_schedule' => message_shutdown['shutdown_schedule'],
-              'team_id'           => message_shutdown['team_id'].to_s,
-              'team_name'         => message_shutdown['team_name'].to_s
-            )
-          ).ordered
-          expect(logger).to receive(:info).with(/tagged/).ordered
-          expect { subject.handle_message(message_shutdown) }.to raise_exception
+        it 'tags requested instance and raises exception' do
+          expect(ec2_resource.client).to receive(:create_tags).and_wrap_original do |original, hash, &block|
+            expect(hash[:resources]).to eq ['test']
+            request_hash = hash[:tags].detect { |h| h[:key] == 'shutdown_schedule' }
+            expect(request_hash[:value]).to eq 'sometimes'
+            original.call(hash, &block)
+          end
+          expect { subject.handle_message(message_shutdown) }.to raise_error RuntimeError
         end
       end
 
       context 'when no shutdown schedule specified' do
-        it 'tags requested instance, logs info and raises exception' do
-          expect(logger).to receive(:info).with(/requested/).ordered
-          expect(tags).to receive(:set).with(
-            hash_including(
-              'Name' => "#{message['instance_name']}.#{message['domain']}",
-              'pantry_request_id' => request_id.to_s,
-              'shutdown_schedule' => config['shutdown_schedule'],
-              'team_id'           => message['team_id'].to_s,
-              'team_name'         => message['team_name'].to_s
-            )
-          ).ordered
-          expect(logger).to receive(:info).with(/tagged/).ordered
-          expect { subject.handle_message(message) }.to raise_exception
+        context 'when default schedule specified in config' do
+          let(:config) { { 'retries' => retry_count, 'shutdown_schedule' => 'everyday' } }
+          it 'tags with default schedule' do
+            expect(ec2_resource.client).to receive(:create_tags).and_wrap_original do |original, hash, &block|
+              expect(hash[:resources]).to eq ['test']
+              request_hash = hash[:tags].detect { |h| h[:key] == 'shutdown_schedule' }
+              expect(request_hash[:value]).to eq 'everyday'
+              original.call(hash, &block)
+            end
+            expect { subject.handle_message(message) }.to raise_error RuntimeError
+          end
+        end
+
+        it 'tags requested instance' do
+          expect(ec2_resource.client).to receive(:create_tags).and_wrap_original do |original, hash, &block|
+            expect(hash[:resources]).to eq ['test']
+            request_hash = hash[:tags].detect { |h| h[:key] == 'shutdown_schedule' }
+            expect(request_hash[:value]).to be nil
+            original.call(hash, &block)
+          end
+          expect { subject.handle_message(message) }.to raise_error RuntimeError
         end
       end
 
       context "when instance can't be requested" do
         it 'raise exception' do
-          allow(instances).to receive(:create).and_raise
-          expect { subject.handle_message(message) }.to raise_exception
+          ec2_resource.client.stub_responses(:run_instances, 'ServiceError')
+          expect { subject.handle_message(message) }.to raise_error Aws::Errors::ServiceError
         end
       end
 
       context 'when instance not tagged' do
         let(:retry_count) { 10 }
 
-        it 'retries before raising exception' do
+        it 'retries before reraising exception' do
+          ec2_resource.client.stub_responses(:create_tags, 'ServiceError')
+          expect(ec2_resource.client).to receive(:create_tags).exactly(10).times.and_call_original
           allow(subject).to receive(:sleep)
-          expect(tags).to receive(:set).with(hash_including('pantry_request_id' => request_id.to_s)).and_raise.exactly(retry_count).times
-          expect { subject.handle_message(message) }.to raise_exception
+          expect { subject.handle_message(message) }.to raise_error Exception
         end
       end
     end
@@ -192,89 +180,69 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
 
   context 'when instance is requested' do
     let(:instance_ip) { '192.168.13.37' }
-    let(:filtered_instance) { instance_double('AWS::EC2::Instance', status: ec2_status, id: instance_id) }
+    let(:instance_id) { 'i-fake1337' }
+    let(:response) { { reservations: [{ instances: [{ instance_id: instance_id, state: { name: ec2_status }, private_ip_address: instance_ip }] }] } }
+
+    before(:each) do
+      expect(ec2_resource.client).not_to receive(:run_instances)
+      ec2_resource.client.stub_responses(:describe_instances, response)
+    end
 
     context "when instance can't return current status" do
       let(:ec2_status) { nil }
-      it 'logs error and raises exception' do
-        expect(logger).to receive(:error).with(/unexpected state/)
-        expect { subject.handle_message(message) }.to raise_exception
+      it 'raises exception' do
+        expect { subject.handle_message message }.to raise_error RuntimeError
       end
     end
 
     context "when instance's status is pending" do
-      let(:ec2_status) { :pending }
-      it 'logs info raises exception' do
-        expect(logger).to receive(:info).with(/pending/)
-        expect { subject.handle_message(message) }.to raise_exception
+      let(:ec2_status) { 'pending' }
+      it 'raises exception' do
+        expect { subject.handle_message message }.to raise_error RuntimeError
       end
     end
 
     context "when instance's status is running" do
-      let(:attachments) do
-        {
-          '/dev/sda1' => instance_double('AWS::EC2::Attachment', volume: volume),
-          '/dev/sda2' => instance_double('AWS::EC2::Attachment', volume: volume)
-        }
+      let(:volumes) do
+        [{ attachments: [{ volume_id: 'test', instance_id: instance_id, device: '/dev/sda1' }], volume_id: 'test' }]
       end
-      let(:filtered_instance) do
-        instance_double('AWS::EC2::Instance',
-                        private_ip_address: instance_ip,
-                        id: instance_id,
-                        status: :running,
-                        attachments: attachments)
+      let(:ec2_status) { 'running' }
+      before(:each) do
+        ec2_resource.client.stub_responses(:describe_volumes, volumes: volumes)
       end
-      let(:merged_message) do
-        message.merge(instance_id: instance_id,
-                      ip_address: instance_ip,
-                      private_ip: instance_ip)
-      end
-      let(:vol_tags)    { instance_double('AWS::EC2::ResourceTagCollection', set: true) }
-      let(:volume)      { instance_double('AWS::EC2::Volume', tags: vol_tags) }
 
       include_examples 'send message'
 
       it 'tags volumes' do
-        expect(vol_tags).to receive(:set).with(
-          hash_including(
-            'Name' => "#{message['instance_name']}.#{message['domain']}_OS_VOL",
-            'device' => '/dev/sda1'
-          )
-        )
-        expect(vol_tags).to receive(:set).with(
-          hash_including(
-            'Name' => "#{message['instance_name']}.#{message['domain']}_VOL1",
-            'device' => '/dev/sda2'
-          )
-        )
-        subject.handle_message(message)
+        expect(ec2_resource.client).to receive(:create_tags).and_wrap_original do |original, hash, &block|
+          expect(hash[:resources]).to eq ['test']
+          request_hash = hash[:tags].detect { |h| h[:key] == 'pantry_request_id' }
+          expect(request_hash[:value]).to eq request_id.to_s
+          original.call(hash, &block)
+        end
+        subject.handle_message message
       end
 
       it 'merges IP address with message for publishing' do
-        expect(logger).to receive(:info).with(/volumes tagged/)
         subject.handle_message(message)
-        expect(publisher).to have_received(:publish).with(merged_message)
+        expect(publisher).to have_received(:publish).with(hash_including(message))
+        expect(publisher).to have_received(:publish).with(hash_including(ip_address: instance_ip, instance_id: instance_id))
       end
     end
 
-    [:shutting_down, :stopping, :stopped].each do |status|
+    %w(shutting_down stopping stopped).each do |status|
       context "when instance's status is #{status}" do
         let(:ec2_status) { status }
         let(:ec2_status_regex) { Regexp.new(status.to_s) }
 
-        before(:each) do
-          allow(logger).to receive(:error).with(ec2_status_regex)
-        end
-
-        it 'logs error and raises exception' do
-          expect(logger).to receive(:error).with(ec2_status_regex)
-          expect { subject.handle_message(message) }.to raise_exception
+        it 'raises exception' do
+          expect { subject.handle_message(message) }.to raise_exception RuntimeError
         end
       end
     end
 
-    context '#handle_message publishes message to error topic for terminated instance' do
-      let(:ec2_status) { :terminated }
+    context 'when instance terminated' do
+      let(:ec2_status) { 'terminated' }
 
       it 'publishes message to error topic' do
         subject.handle_message(message)

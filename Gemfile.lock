@@ -33,9 +33,6 @@ GEM
       jmespath (~> 1.0)
     aws-sdk-resources (2.1.1)
       aws-sdk-core (= 2.1.1)
-    aws-sdk-v1 (1.64.0)
-      json (~> 1.4)
-      nokogiri (>= 1.4.4)
     builder (3.2.2)
     bundler-audit (0.3.1)
       bundler (~> 1.2)
@@ -207,9 +204,7 @@ PLATFORMS
 DEPENDENCIES
   activesupport
   awesome_print
-  aws-sdk-v1 (~> 1.25)
   bundler-audit
-  daemons
   guard-bundler
   guard-rspec
   pantry_daemon_common!

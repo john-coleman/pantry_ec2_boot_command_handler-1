@@ -1,4 +1,3 @@
-require 'aws-sdk-v1'
 require 'erb'
 require 'active_support/core_ext/hash/keys'
 require 'timeout'
@@ -6,7 +5,7 @@ require 'timeout'
 module Wonga
   module Pantry
     class EC2BootCommandHandler
-      def initialize(ec2 = AWS::EC2.new, config, publisher, error_publisher, logger)
+      def initialize(ec2 = Aws::EC2::Resource.new, config, publisher, error_publisher, logger)
         @ec2 = ec2
         @config = config
         @publisher = publisher
@@ -15,42 +14,41 @@ module Wonga
       end
 
       def find_machine_by_request_id(request_id)
-        @ec2.instances.filter('tag:pantry_request_id', [request_id.to_s]).first
+        @ec2.instances(filters: [{ name: 'tag:pantry_request_id', values: [request_id.to_s] }]).first
       end
 
       def handle_message(message)
         instance = find_machine_by_request_id(message['pantry_request_id'])
         if instance
-          case instance.status
-          when :terminated
+          case instance.state.name
+          when 'terminated'
             send_error_message(message)
             return
-          when :stopping, :stopped, :shutting_down
-            @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status}")
+          when 'stopping', 'stopped', 'shutting_down'
+            @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.state.name}")
             fail
-          when :pending
-            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status}")
+          when 'pending'
+            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.state.name}")
             fail
-          when :running
-            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.status}")
-            fail unless tag_volumes!(instance, message)
-            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} volumes tagged")
-            @publisher.publish(message.merge(instance_id: instance.id,
-                                             ip_address: instance.private_ip_address,
-                                             private_ip: instance.private_ip_address
-                                            )
-                              )
+          when 'running'
+            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} is #{instance.state.name}")
+            tag_volumes!(instance, message)
+            @publisher.publish(message.merge(instance_id: instance.id, ip_address: instance.private_ip_address, private_ip: instance.private_ip_address))
             return
           else
-            @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} unexpected state: #{instance.status}")
+            @logger.error("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} "\
+                          "unexpected state: #{instance.state.name}")
             fail
           end
         else
           instance = request_instance(message)
           @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} requested")
-          tag_instance!(instance, message)
-          @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} tagged")
-          fail
+          if tag_instance!(instance, message)
+            @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} tagged")
+            fail
+          else
+            fail Exception, 'Instance tagging failed'
+          end
         end
         @logger.error('Unexpected WTF state encountered!')
         fail
@@ -71,27 +69,29 @@ module Wonga
           image_id:                 message['ami'],
           instance_type:            message['flavor'],
           key_name:                 message['aws_key_pair_name'],
-          subnet:                   message['subnet_id'],
+          subnet_id:                message['subnet_id'],
           disable_api_termination:  message['protected'],
           block_device_mappings:    message['block_device_mappings'].map(&:deep_symbolize_keys),
           security_group_ids:       Array(message['security_group_ids']),
           user_data:                render_user_data(message),
-          count:                    1
+          min_count:                1,
+          max_count:                1
         }
-        params = params.merge(iam_instance_profile: message['iam_instance_profile']) if message['iam_instance_profile']
-        @ec2.instances.create(params)
+        params = params.merge(iam_instance_profile: { name: message['iam_instance_profile'] }) if message['iam_instance_profile']
+        @ec2.create_instances(params).first
       end
 
       def tag_instance!(instance, message)
         i = 0
         begin
           tags = tags_from_message(message)
-          instance.tags.set(tags)
-          instance.tags['pantry_request_id'] == message['pantry_request_id'].to_s
-        rescue Exception => e # rubocop:disable Lint/RescueException
+          @ec2.create_tags resources: [instance.id], tags: tags
+          instance.reload
+          instance.tags.any? { |hash| hash['key'] = 'pantry_request_id' && hash['value'] == message['pantry_request_id'].to_s }
+        rescue Aws::Errors::ServiceError => e
           i += 1
           if i < @config['retries'].to_i
-            sleep @config['retry_delay'].to_i
+            sleep @config['retry_delay'].to_i + 1
             retry
           end
           @logger.error("Instance #{message['pantry_request_id']} - name: #{message['name']} #{instance.id} failed to tag with error: #{e.inspect}")
@@ -101,29 +101,30 @@ module Wonga
       end
 
       def tag_volumes!(instance, message)
-        tags = tags_from_message(message)
         volume_count = 1
-        instance.attachments.each do |device, attachment|
-          if device == '/dev/sda1'
-            vol_name = tags['Name'] + '_OS_VOL'
-          else
-            vol_name = tags['Name'] + "_VOL#{volume_count}"
-            volume_count += 1
-          end
+        instance.volumes.each do |volume|
+          device = volume.attachments.first.device
+          tags = if device == '/dev/sda1'
+                   tags_from_message message, '_OS_VOL'
+                 else
+                   volume_count += 1
+                   tags_from_message message, "_VOL#{volume_count}"
+                 end
 
-          vol_tags = tags.merge('Name' => vol_name, 'device' => device)
-          attachment.volume.tags.set(vol_tags)
+          vol_tags = tags << { key: 'device', value: device }
+          @ec2.create_tags resources: [volume.id], tags: vol_tags
         end
+        @logger.info("Instance #{message['pantry_request_id']} - name: #{message['instance_name']} #{instance.id} volumes tagged")
       end
 
-      def tags_from_message(message)
-        {
-          'Name'              => "#{message['instance_name']}.#{message['domain']}",
-          'pantry_request_id' => message['pantry_request_id'].to_s,
-          'shutdown_schedule' => message['shutdown_schedule'] || @config['shutdown_schedule'],
-          'team_id'           => message['team_id'].to_s,
-          'team_name'         => message['team_name'].to_s
-        }
+      def tags_from_message(message, additional_name = '')
+        [
+          { key: 'Name', value: "#{message['instance_name']}.#{message['domain']}#{additional_name}" },
+          { key: 'pantry_request_id', value: message['pantry_request_id'].to_s },
+          { key: 'shutdown_schedule', value: message['shutdown_schedule'] || @config['shutdown_schedule'] },
+          { key: 'team_id', value: message['team_id'].to_s },
+          { key: 'team_name', value: message['team_name'].to_s }
+        ]
       end
     end
   end
