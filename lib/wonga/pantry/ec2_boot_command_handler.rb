@@ -1,6 +1,7 @@
 require 'erb'
 require 'active_support/core_ext/hash/keys'
 require 'timeout'
+require 'base64'
 
 module Wonga
   module Pantry
@@ -61,7 +62,7 @@ module Wonga
 
       def render_user_data(message)
         template = IO.read(File.join(File.dirname(__FILE__), '..', '..', '..', 'templates', "user_data_#{message['platform']}.erb"))
-        ERB.new(template, nil, '<>').result(message.instance_eval { binding })
+        Base64.encode64(ERB.new(template, nil, '<>').result(message.instance_eval { binding }))
       end
 
       def request_instance(message)
@@ -84,8 +85,7 @@ module Wonga
       def tag_instance!(instance, message)
         i = 0
         begin
-          tags = tags_from_message(message)
-          @ec2.create_tags resources: [instance.id], tags: tags
+          @ec2.create_tags resources: [instance.id], tags: tags_from_message(message)
           instance.reload
           instance.tags.any? { |hash| hash['key'] = 'pantry_request_id' && hash['value'] == message['pantry_request_id'].to_s }
         rescue Aws::Errors::ServiceError => e
@@ -121,7 +121,7 @@ module Wonga
         [
           { key: 'Name', value: "#{message['instance_name']}.#{message['domain']}#{additional_name}" },
           { key: 'pantry_request_id', value: message['pantry_request_id'].to_s },
-          { key: 'shutdown_schedule', value: message['shutdown_schedule'] || @config['shutdown_schedule'] },
+          { key: 'shutdown_schedule', value: message['shutdown_schedule'] || @config['shutdown_schedule'] || 'never' },
           { key: 'team_id', value: message['team_id'].to_s },
           { key: 'team_name', value: message['team_name'].to_s }
         ]

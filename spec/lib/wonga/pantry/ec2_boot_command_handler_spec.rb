@@ -85,7 +85,7 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
       context 'when no proxy attribute is provided' do
         it 'requests instance without proxy' do
           expect(ec2_resource.client).to receive(:run_instances).and_wrap_original do |original, *args, &block|
-            expect(args[0][:user_data]).not_to match(/SETX HTTP_PROXY/)
+            expect(Base64.decode64(args[0][:user_data])).not_to match(/SETX HTTP_PROXY/)
             original.call(*args, &block)
           end
 
@@ -98,7 +98,7 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
 
         it 'requests instance with proxy' do
           expect(ec2_resource.client).to receive(:run_instances).and_wrap_original do |original, *args, &block|
-            expect(args[0][:user_data]).to match(/SETX HTTP_PROXY/)
+            expect(Base64.decode64(args[0][:user_data])).to match(/SETX HTTP_PROXY/)
             original.call(*args, &block)
           end
 
@@ -110,8 +110,8 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
         let(:message_linux)   { message.merge('platform' => 'linux') }
         it 'requests instance with hostname set in user_data' do
           expect(ec2_resource.client).to receive(:run_instances).and_wrap_original do |original, *args, &block|
-            expect(args[0][:user_data]).to include("hostname #{message['instance_name']}")
-            expect(args[0][:user_data]).to include("#{message['instance_name']}.#{message['domain']}")
+            expect(Base64.decode64(args[0][:user_data])).to include("hostname #{message['instance_name']}")
+            expect(Base64.decode64(args[0][:user_data])).to include("#{message['instance_name']}.#{message['domain']}")
             original.call(*args, &block)
           end
 
@@ -151,7 +151,7 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
           expect(ec2_resource.client).to receive(:create_tags).and_wrap_original do |original, hash, &block|
             expect(hash[:resources]).to eq ['test']
             request_hash = hash[:tags].detect { |h| h[:key] == 'shutdown_schedule' }
-            expect(request_hash[:value]).to be nil
+            expect(request_hash[:value]).to eq 'never'
             original.call(hash, &block)
           end
           expect { subject.handle_message(message) }.to raise_error RuntimeError
