@@ -8,8 +8,13 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
   let(:error_publisher) { instance_double(Wonga::Daemon::Publisher, publish: message) }
   let(:request_id) { 2 }
   let(:retry_count) { 0 }
-  let(:config) { { 'retries' => retry_count } }
-
+  let(:config) do
+    {
+      'no_proxy_domains' => 'no-proxy.example.com',
+      'retries' => retry_count,
+      'shutdown_schedule' => 'never'
+    }
+  end
   let(:message) do
     {
       'ami' => 'ami-fedfd48a',
@@ -23,7 +28,7 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
           }
         }
       ],
-      'domain' => 'blop.hurr',
+      'domain' => 'example.com',
       'flavor' => 't1.micro',
       'instance_name' => 'sqs-test',
       'pantry_request_id' => request_id,
@@ -99,6 +104,7 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
         it 'requests instance with proxy' do
           expect(ec2_resource.client).to receive(:run_instances).and_wrap_original do |original, *args, &block|
             expect(Base64.decode64(args[0][:user_data])).to match(/SETX HTTP_PROXY/)
+            expect(Base64.decode64(args[0][:user_data])).to match("SETX NO_PROXY \"#{message['domain']},#{config['no_proxy_domains']}\" /M")
             original.call(*args, &block)
           end
 
@@ -108,6 +114,7 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
 
       context 'when Linux platform specified' do
         let(:message_linux)   { message.merge('platform' => 'linux') }
+
         it 'requests instance with hostname set in user_data' do
           expect(ec2_resource.client).to receive(:run_instances).and_wrap_original do |original, *args, &block|
             expect(Base64.decode64(args[0][:user_data])).to include("hostname #{message['instance_name']}")

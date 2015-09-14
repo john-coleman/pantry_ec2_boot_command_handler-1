@@ -18,7 +18,7 @@ FOR /F %%U IN ('reg query hku') DO reg delete %%U\Environment /v NO_PROXY /f 2> 
 <% else %>
 SETX HTTP_PROXY <%= message["http_proxy"] %> /M
 SETX HTTPS_PROXY <%= message["http_proxy"] %> /M
-SETX NO_PROXY "<%= message["domain"] %>,example.com,wonga.com" /M
+SETX NO_PROXY "<%= message['domain'] %><% if @config['no_proxy_domains'] %><%= ",#{@config['no_proxy_domains']}" %><% end %>" /M
 <% end %>
 winrm quickconfig -q & winrm set winrm/config/winrs @{MaxMemoryPerShellMB="3072"} & winrm set winrm/config/winrs @{MaxConcurrentUsers="100"} & winrm set winrm/config/winrs @{MaxProcessesPerShell="0"} & winrm set winrm/config/winrs @{MaxShellsPerUser="0"} & winrm set winrm/config @{MaxTimeoutms="1800000"} & winrm set winrm/config/service @{AllowUnencrypted="true"} & winrm set winrm/config/service/auth @{Basic="true"} & winrm set winrm/config/service/auth @{CredSSP="true"} & winrm set winrm/config/client @{TrustedHosts="*"}
 winmgmt /standalonehost

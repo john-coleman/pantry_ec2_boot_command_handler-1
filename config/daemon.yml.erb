@@ -23,6 +23,7 @@
       <% end %>
     <% end %>
     monitor: <%= @config['daemon']['monitor'] %>
+  no_proxy_domains: <%= @config['no_proxy_domains'] %>
   pantry:
     api_key: <%= @config['pantry']['pantry_api_key'] %>
     request_timeout: <%= @config['pantry']['pantry_request_timeout'] %>

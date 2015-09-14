@@ -62,7 +62,7 @@ module Wonga
 
       def render_user_data(message)
         template = IO.read(File.join(File.dirname(__FILE__), '..', '..', '..', 'templates', "user_data_#{message['platform']}.erb"))
-        Base64.encode64(ERB.new(template, nil, '<>').result(message.instance_eval { binding }))
+        Base64.encode64(ERB.new(template, nil, '<>').result(binding))
       end
 
       def request_instance(message)
