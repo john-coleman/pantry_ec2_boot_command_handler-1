@@ -42,7 +42,7 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
   end
   let(:ec2_resource) { Aws::EC2::Resource.new }
 
-  subject { described_class.new(ec2_resource, config, publisher, error_publisher, logger) }
+  subject { described_class.new(config, publisher, error_publisher, logger, ec2_resource) }
 
   it_behaves_like 'handler'
 

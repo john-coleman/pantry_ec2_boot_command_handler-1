@@ -6,7 +6,7 @@ require 'base64'
 module Wonga
   module Pantry
     class EC2BootCommandHandler
-      def initialize(ec2 = Aws::EC2::Resource.new, config, publisher, error_publisher, logger)
+      def initialize(config, publisher, error_publisher, logger, ec2 = Aws::EC2::Resource.new)
         @ec2 = ec2
         @config = config
         @publisher = publisher
