@@ -49,7 +49,7 @@ RSpec.describe Wonga::Pantry::EC2BootCommandHandler do
   describe '#handle_message' do
     context 'when instance does not exist' do
       let(:instance_response) { { reservations: [{ instances: [instance_attributes] }] } }
-      let(:instance_attributes) { { tags: [key: 'pantry_request_i', value: request_id.to_s] } }
+      let(:instance_attributes) { { tags: [key: 'pantry_request_id', value: request_id.to_s] } }
       let(:response) { { reservations: [] } }
       let(:create_response) { { instance_id: 'test' } }
 
